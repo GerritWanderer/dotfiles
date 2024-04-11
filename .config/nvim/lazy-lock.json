@@ -5,7 +5,7 @@
   "neorg": { "branch": "main", "commit": "7c5464722a4e8240efd9ecd7bef85d38f94c1ab5" },
   "nui.nvim": { "branch": "main", "commit": "cbd2668414331c10039278f558630ed19b93e69b" },
   "nvim-tree.lua": { "branch": "master", "commit": "ddd1d6eb21c45433bdc65cc8015f2457998f2bf2" },
-  "nvim-treesitter": { "branch": "master", "commit": "d90e11756da30959da59eeb8888ecf16e877d86a" },
+  "nvim-treesitter": { "branch": "master", "commit": "fbe76211f45413feadb155a89073bf65b5766b2e" },
   "nvim-web-devicons": { "branch": "master", "commit": "6e355632387a085f15a66ad68cf681c1d7374a04" },
   "plenary.nvim": { "branch": "master", "commit": "8aad4396840be7fc42896e3011751b7609ca4119" },
   "telescope-fzf-native.nvim": { "branch": "main", "commit": "9ef21b2e6bb6ebeaf349a0781745549bbb870d27" },
