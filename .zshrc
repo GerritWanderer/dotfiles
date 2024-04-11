@@ -105,8 +105,9 @@ export EDITOR='nvim'
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 
-# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
-[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+
+# Move the p10k include into the the local zshrc file
+# [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
 # customizations for the local environment
 source ~/.zshrc.local.zsh
