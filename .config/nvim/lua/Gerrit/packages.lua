@@ -58,5 +58,19 @@ require("lazy").setup({
       }
 
     end,
-  }
+  },
+  { 
+   'Jarvismkennedy/git-auto-sync.nvim',
+    opts = { 
+      {
+        "~/Workspace/notes",
+        auto_pull = true,
+        auto_push = true,
+        auto_commit = true,
+        prompt = false,
+        name = "notes"
+      },
+    },
+    lazy = false,
+  } 
 })

@@ -1,4 +1,5 @@
 {
+  "git-auto-sync.nvim": { "branch": "main", "commit": "6ec16ff060a0f222da634ca78bd0202019324f7b" },
   "hardtime.nvim": { "branch": "main", "commit": "21b0f9146198bb43fbc9f5ec66c8af3234f278ed" },
   "lazy.nvim": { "branch": "main", "commit": "31ddbea7c10b6920c9077b66c97951ca8682d5c8" },
   "luarocks.nvim": { "branch": "main", "commit": "d73f4bbbeea9eeb9b66a0c6431db402654f43cb8" },
