@@ -1,1 +1,1 @@
-require('Gerrit')
+require("gerrit")
