@@ -13,3 +13,8 @@ vim.keymap.set("n", "<leader>sx", "<cmd>close<CR>", { desc = "Close current spli
 
 -- Telescoope
 vim.keymap.set('n', '<leader>q', ':bd<cr>', opts) 
+
+-- Move Lines command
+
+vim.keymap.set('v', '<A-j>', ":m '>+1<CR>gv=gv", opts)
+vim.keymap.set('v', '<A-k>', ":m '<-2<CR>gv=gv", opts)
