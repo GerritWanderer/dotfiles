@@ -104,8 +104,8 @@ export EDITOR='nvim'
 # Example aliases
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
-alias hotkeys="zellij attach hotkeys --force-run-commands"
-alias dotfiles="zellij attach dotfiles --force-run-commands"
+alias hotkeys="zellij --layout hotkeys"
+alias dotfiles="zellij --layout dotfiles"
 
 # Move the p10k include into the the local zshrc file
 # [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
