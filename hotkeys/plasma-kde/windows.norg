@@ -1,0 +1,8 @@
+* Desktop overview modes
+  - META + G %desktops overview%
+  - META + W %current desktop overview%
+  - META + F %combo of current desktop overview and all desktops%
+* Switch between Desktops
+  - META + CTRL + left/right
+* Visual Switch of Windows
+  - META + ALT + left/right

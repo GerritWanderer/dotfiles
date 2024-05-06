@@ -1,0 +1,4 @@
+* Update all packages
+ - sudo pacman -Syu
+* list all snapshots
+  ^sudo snapper -c root|home list^
