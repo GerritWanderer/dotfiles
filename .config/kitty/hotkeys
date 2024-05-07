@@ -1,0 +1,12 @@
+layout grid
+cd ~/dotfiles/hotkeys/neovim
+launch nvim basics.norg
+launch nvim movement.norg
+launch nvim search_and_replace.norg
+launch nvim visual_mode.norg
+
+
+new_tab ArchLinux
+cd ~/dotfiles/hotkeys/arch
+launch nvim system.norg
+launch zsh
