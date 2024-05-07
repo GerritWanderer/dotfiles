@@ -1,0 +1,2 @@
+cd ~/
+launch sh -c "neofetch && exec zsh"
