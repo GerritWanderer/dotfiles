@@ -1,4 +1,4 @@
 * Replace/Delete text within quotes
   - ^di"^ %delete% or ^ci"^ %replace%
-* Open/Close a block
-  ^z + o^ and ^z + c^
+* Open/Close a block 
+  - ^z + o^ and ^z + c^
