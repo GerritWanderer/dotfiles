@@ -1,0 +1,12 @@
+layout grid
+cd ~/dotfiles/.config/nvim
+launch nvim lua/gerrit/keymaps.lua 
+launch nvim lua/gerrit/set.lua
+launch zsh
+
+new_tab Kitty
+layout grid
+cd ~/dotfiles/.config/kitty
+launch nvim kitty.conf
+launch nvim hotkeys
+launch nvim dotfiles

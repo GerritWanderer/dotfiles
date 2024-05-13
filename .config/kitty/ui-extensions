@@ -1,0 +1,9 @@
+layout grid
+new_tab ngrok
+launch ngrok http 3000 --domain on-dev-gerrit.eu.ngrok.io
+new_tab solidus
+cd ~/Workspace/solidus
+launch --hold zsh -c 'export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" && nvm use && HOST=on-dev-gerrit.eu.ngrok.io gulp'
+new_tab extension
+cd ~/Workspace/shopify/ui-extensions
+launch --hold zsh -c 'GRAPHQL_API_URL=https://on-dev-gerrit.eu.ngrok.io/graphql yarn dev'
