@@ -3,7 +3,7 @@
 
 -- nvim tree
 vim.keymap.set('n', '<leader>e', ':NvimTreeToggle<cr>', opts)
-vim.keymap.set('i', 'jk', '<ESC>', { desc = 'exit insert mode with jk' })
+vim.keymap.set('i', 'jj', '<ESC>', { desc = 'exit insert mode with jj' })
 
 -- window management
 vim.keymap.set("n", "<leader>sv", "<C-w>v", { desc = "Split window vertically" }) -- split window vertically
