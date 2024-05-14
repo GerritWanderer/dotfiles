@@ -1,7 +1,7 @@
 layout grid
-new_tab ngrok
+new_tab Ngrok
 launch ngrok http 3000 --domain on-dev-gerrit.eu.ngrok.io
-new_tab solidus
+new_tab Solidus
 cd ~/Workspace/solidus
 launch --hold zsh -c 'export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" && nvm use && HOST=on-dev-gerrit.eu.ngrok.io gulp'
 new_tab UI-Extension
