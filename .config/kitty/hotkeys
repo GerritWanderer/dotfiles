@@ -1,12 +1,8 @@
 layout grid
+new_tab Neovim
 cd ~/dotfiles/hotkeys/neovim
-launch nvim basics.norg
-launch nvim movement.norg
-launch nvim search_and_replace.norg
-launch nvim visual_mode.norg
-
+launch --hold zsh -c 'nvim -O *' 
 
 new_tab ArchLinux
 cd ~/dotfiles/hotkeys/arch
-launch nvim system.norg
-launch zsh
+launch --hold zsh -c 'nvim -O *'

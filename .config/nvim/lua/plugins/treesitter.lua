@@ -1,6 +1,9 @@
 return {
   {"nvim-treesitter/nvim-treesitter", build = ":TSUpdate",
   config = function()
+    vim.cmd("set noautoindent")
+    vim.cmd("set smartindent")
+    vim.cmd("filetype indent off")
     require('nvim-treesitter.configs').setup {
       ensure_installed = { "ruby", "javascript", "typescript", "norg", "c", "lua", "vim", "vimdoc", "query" },
         sync_install = false,
