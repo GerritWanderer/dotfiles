@@ -15,5 +15,5 @@ vim.keymap.set("n", "<leader>sx", "<cmd>close<CR>", { desc = "Close current spli
 vim.keymap.set('n', '<leader>q', ':bd<cr>', opts) 
 
 -- Move Lines command
-vim.keymap.set('v', '<A-j>', ":m '>+1<CR>gv=gv", opts)
-vim.keymap.set('v', '<A-k>', ":m '<-2<CR>gv=gv", opts)
+vim.keymap.set('v', '<C-j>', ":m '>+1<CR>gv=gv", opts)
+vim.keymap.set('v', '<C-k>', ":m '<-2<CR>gv=gv", opts)
