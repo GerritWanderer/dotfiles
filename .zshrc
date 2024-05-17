@@ -105,16 +105,9 @@ export EDITOR='nvim'
 # Example aliases
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
-alias hotkeys="zellij --layout hotkeys"
-alias dotfiles="zellij --layout dotfiles"
 
 # p10k configuration 
 [[ ! -f ~/.p10k.local.zsh ]] || source ~/.p10k.local.zsh
 
 # customizations for the local environment
 source ~/.zshrc.local.zsh
-
-
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
