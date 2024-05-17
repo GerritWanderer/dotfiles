@@ -13,3 +13,6 @@
   - Ctrl-H    Delete one character
   - Ctrl-W    Delete one word
   - Ctrl-U    Delete the entire line
+
+* Comment/Uncomment multiple lines
+  - enable visual block mode and select all lines and remove the quote by pressing X or create a quote by switching to Insert mode via I and set character # and leave again

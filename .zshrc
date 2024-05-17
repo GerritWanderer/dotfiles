@@ -108,8 +108,8 @@ export EDITOR='nvim'
 alias hotkeys="zellij --layout hotkeys"
 alias dotfiles="zellij --layout dotfiles"
 
-# Move the p10k include into the the local zshrc file
-# [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+# p10k configuration 
+[[ ! -f ~/.p10k.local.zsh ]] || source ~/.p10k.local.zsh
 
 # customizations for the local environment
 source ~/.zshrc.local.zsh

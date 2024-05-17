@@ -1,3 +1,7 @@
 .git
 .gitignore
 hotkeys
+.zshrc.local.macbook.zsh
+.zshrc.local.arch.zsh
+.p10k.local.macbook.zsh
+.p10k.local.arch.zsh
