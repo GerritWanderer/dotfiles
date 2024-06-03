@@ -6,4 +6,4 @@ cd ~/Workspace/solidus
 launch --hold zsh -c 'export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" && nvm use && HOST=on-dev-gerrit.eu.ngrok.io gulp'
 new_tab UI-Extension
 cd ~/Workspace/shopify-apps/checkout-ui-extensions
-launch --hold zsh -c 'GRAPHQL_API_URL=https://on-dev-gerrit.eu.ngrok.io/graphql yarn dev'
+launch --hold zsh -c 'SOLIDUS_BACKEND_URL=https://on-dev-gerrit.eu.ngrok.io GRAPHQL_API_URL=https://on-dev-gerrit.eu.ngrok.io/graphql yarn dev'
