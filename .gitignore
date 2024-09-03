@@ -1,2 +1,4 @@
 .p10k.local.zsh
 .zshrc.local.zsh
+.cache
+.local
