@@ -15,6 +15,7 @@ return {
         hide_dotfiles = false,
         hide_gitignored = true,
         hide_by_name = { "node_modules", "git" },
+        never_show = { ".git" },
       },
       follow_current_file = {
         enabled = true, -- This will find and focus the file in the active buffer every time
