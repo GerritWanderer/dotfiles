@@ -9,6 +9,7 @@ return {
           api_key = os.getenv("OPENAI_API_KEY"),
         },
       },
+      toggle_target = "tabnew",
     })
   end,
 }

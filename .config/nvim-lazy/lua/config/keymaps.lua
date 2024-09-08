@@ -3,3 +3,5 @@
 -- Add any additional keymaps here
 --
 vim.keymap.set("i", "jj", "<ESC>", { desc = "exit insert mode with jj" })
+vim.keymap.set("n", "<leader>aa", "<cmd>PrtChatToggle<cr>", { desc = "Open AI Chat", remap = true })
+vim.keymap.set("n", "<leader>as", "<cmd>PrtChatRespond<cr>", { desc = "Submnit AI Chat", remap = true })
