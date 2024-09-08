@@ -111,3 +111,4 @@ alias lvim="NVIM_APPNAME=nvim-lazy nvim"
 
 # customizations for the local environment
 source ~/.zshrc.local.zsh
+source ~/.zshrc.local.secrets.zsh
