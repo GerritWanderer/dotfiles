@@ -104,7 +104,7 @@ export EDITOR='nvim'
 #
 # Example aliases
 alias lvim="NVIM_APPNAME=nvim-lazy nvim"
-# alias ohmyzsh="mate ~/.oh-my-zsh"
+alias kvim="NVIM_APPNAME=nvim-kickstart nvim"
 
 # p10k configuration 
 [[ ! -f ~/.p10k.local.zsh ]] || source ~/.p10k.local.zsh
