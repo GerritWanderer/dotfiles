@@ -77,7 +77,7 @@ ZSH_THEME="powerlevel10k/powerlevel10k"
 # Custom plugins may be added to $ZSH_CUSTOM/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
-plugins=(git z zsh-syntax-highlighting)
+plugins=(git z zsh-syntax-highlighting web-search)
 source $ZSH/oh-my-zsh.sh
 
 # User configuration
@@ -103,8 +103,8 @@ export EDITOR='nvim'
 # For a full list of active aliases, run `alias`.
 #
 # Example aliases
-alias lvim="NVIM_APPNAME=nvim-lazy nvim"
 alias kvim="NVIM_APPNAME=nvim-kickstart nvim"
+alias gvim="NVIM_APPNAME=nvim-gerrit nvim"
 
 # p10k configuration 
 [[ ! -f ~/.p10k.local.zsh ]] || source ~/.p10k.local.zsh
@@ -112,3 +112,5 @@ alias kvim="NVIM_APPNAME=nvim-kickstart nvim"
 # customizations for the local environment
 source ~/.zshrc.local.zsh
 source ~/.zshrc.local.secrets.zsh
+setopt no_share_history
+unsetopt share_history
