@@ -59,7 +59,7 @@ set switchbuf=uselast wildmenu "wildoptions=pum,tagfile
 set number
 " You can also add relative line numbers, to help with jumping.
 "  Experiment for yourself to see if you like it!
-"set relativenumber
+set relativenumber
 
 " Enable mouse mode, can be useful for resizing splits for example!
 set mouse=a
