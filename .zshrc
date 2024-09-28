@@ -115,4 +115,5 @@ source ~/.zshrc.local.secrets.zsh
 setopt no_share_history
 unsetopt share_history
 
-eval "$(oh-my-posh init zsh --config 'https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/refs/heads/main/themes/catppuccin_macchiato.omp.json')"
+eval "$(oh-my-posh init zsh --config ~/.config/oh-my-posh/catpuccin_macchiato.omp.json)"
+
