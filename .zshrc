@@ -15,7 +15,7 @@ export ZSH=$HOME/.oh-my-zsh
 # load a random theme each time oh-my-zsh is loaded, in which case,
 # to know which specific one was loaded, run: echo $RANDOM_THEME
 # See https://github.com/ohmyzsh/ohmyzsh/wiki/Themes
-ZSH_THEME="powerlevel10k/powerlevel10k"
+# ZSH_THEME="powerlevel10k/powerlevel10k"
 
 # Set list of themes to pick from when loading at random
 # Setting this variable when ZSH_THEME=random will cause zsh to load
@@ -107,10 +107,12 @@ alias kvim="NVIM_APPNAME=nvim-kickstart nvim"
 alias gvim="NVIM_APPNAME=nvim-gerrit nvim"
 
 # p10k configuration 
-[[ ! -f ~/.p10k.local.zsh ]] || source ~/.p10k.local.zsh
+# [[ ! -f ~/.p10k.local.zsh ]] || source ~/.p10k.local.zsh
 
 # customizations for the local environment
 source ~/.zshrc.local.zsh
 source ~/.zshrc.local.secrets.zsh
 setopt no_share_history
 unsetopt share_history
+
+eval "$(oh-my-posh init zsh --config 'https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/refs/heads/main/themes/catppuccin_macchiato.omp.json')"
