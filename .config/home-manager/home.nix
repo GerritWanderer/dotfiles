@@ -29,6 +29,7 @@
     pkgs.gcc
     pkgs.wofi
     pkgs.waybar
+    pkgs.hypridle
     pkgs.firefox
     pkgs.spotify
     pkgs.obsidian
