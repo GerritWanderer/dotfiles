@@ -17,22 +17,25 @@
 
   # The home.packages option allows you to install Nix packages into your
   # environment.
-  nixpkgs.config.allowUnfree = true;
+  nixpkgs.config = {
+    allowUnfree = true;
+  };
   home.packages = [
-    pkgs.neovim
-    pkgs.kitty
-    pkgs.git
-    pkgs.github-cli
+    pkgs.less
     pkgs.stow
-    pkgs.ripgrep
-    pkgs.fd
-    pkgs.gcc
+    pkgs.oh-my-zsh
+    pkgs.oh-my-posh
+    pkgs.pavucontrol
     pkgs.wofi
     pkgs.waybar
-    pkgs.hypridle
     pkgs.firefox
     pkgs.spotify
     pkgs.obsidian
+    pkgs.nodejs
+    pkgs.fd
+    pkgs.ripgrep
+    pkgs.gh
+    pkgs.xorg.xmodmap
   ];
 
   # Home Manager is pretty good at managing dotfiles. The primary way to manage
@@ -73,4 +76,3 @@
   # Let Home Manager install and manage itself.
   programs.home-manager.enable = true;
 }
-
