@@ -96,7 +96,6 @@ export EDITOR='nvim'
 # For a full list of active aliases, run `alias`.
 #
 # Example aliases
-
 setopt no_share_history
 unsetopt share_history
 
