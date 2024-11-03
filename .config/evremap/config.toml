@@ -1,0 +1,14 @@
+device_name = "Telink IQUNIX 2.4GHz"
+phys = "usb-0000:00:14.0-6.3/input0"
+
+[[remap]]
+input = ["KEY_ESC"]
+output = ["KEY_GRAVE"]
+
+[[remap]]
+input = ["KEY_LEFTCTRL", "KEY_W"]
+output = ["KEY_LEFTCTRL", "KEY_BACKSPACE"]
+
+[[remap]]
+input = ["KEY_CAPSLOCK"]
+output = ["KEY_ESC"]
