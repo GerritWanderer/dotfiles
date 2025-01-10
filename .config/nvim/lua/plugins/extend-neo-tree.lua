@@ -1,6 +1,11 @@
 return {
   "nvim-neo-tree/neo-tree.nvim",
   opts = {
+    window = {
+      mappings = {
+        ["s"] = false,
+      },
+    },
     buffers = {
       follow_current_file = {
         enabled = true, -- This will find and focus the file in the active buffer every time
