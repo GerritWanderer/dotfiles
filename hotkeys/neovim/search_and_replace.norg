@@ -1,4 +1,0 @@
-* Search character in current Line
-  ^f^ %forward search%
-  ^t^ %backward search%
-* Reverse last search with ^,^
