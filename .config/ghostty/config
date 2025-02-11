@@ -48,14 +48,15 @@ font-size = 15
 theme = "catppuccin-macchiato"
 
 keybind = global:cmd+grave_accent=toggle_quick_terminal
-keybind = ctrl+h=goto_split:left
-keybind = ctrl+j=goto_split:bottom
-keybind = ctrl+k=goto_split:top
-keybind = ctrl+l=goto_split:right
+# keybind = ctrl+h=goto_split:left
+# keybind = ctrl+j=goto_split:bottom
+# keybind = ctrl+k=goto_split:top
+# keybind = ctrl+l=goto_split:right
 keybind = ctrl+shift+l=resize_split:right,50
 keybind = ctrl+shift+h=resize_split:left,50
 keybind = super+enter=new_split:auto
 keybind = super+shift+enter=toggle_fullscreen
+keybind = super+alt+enter=toggle_split_zoom
 
 keybind = super+alt+up=unbind
 keybind = super+alt+right=unbind
