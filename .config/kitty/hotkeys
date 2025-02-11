@@ -1,8 +1,0 @@
-layout grid
-new_tab Neovim
-cd ~/dotfiles/hotkeys/neovim
-launch --hold zsh -c 'nvim -O *' 
-
-new_tab ArchLinux
-cd ~/dotfiles/hotkeys/arch
-launch --hold zsh -c 'nvim -O *'
