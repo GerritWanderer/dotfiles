@@ -1,5 +1,6 @@
 # If you come from bash you might have to change your $PATH.
 # export PATH=$HOME/bin:/usr/local/bin:$PATH
+export PATH=$HOME/.config/oh-my-zsh/scripts/:$PATH
 
 # Path to your oh-my-zsh installation.
 export ZSH=$HOME/.oh-my-zsh
@@ -91,7 +92,9 @@ export LANGUAGE='en'
 # users are encouraged to define aliases within the ZSH_CUSTOM folder.
 # For a full list of active aliases, run `alias`.
 #
-# Example aliases
+alias tasolidus='tmux-session-solidus.sh' 
+alias tadotfiles='tmux-session-dotfiles.sh' 
+
 setopt no_share_history
 unsetopt share_history
 
