@@ -94,7 +94,7 @@ export LANGUAGE='en'
 #
 alias tasolidus='tmux-session-solidus.sh' 
 alias tadotfiles='tmux-session-dotfiles.sh' 
-
+alias tazig='tmux-session-zig.sh' 
 setopt no_share_history
 unsetopt share_history
 
@@ -104,4 +104,4 @@ source ~/.zshrc.local.secrets.zsh
 
 # oh-my-posh config
 eval "$(oh-my-posh init zsh --config ~/.config/oh-my-posh/catpuccin_macchiato.omp.json)"
-
+eval "$(/Users/gerrit.wanderer/.local/bin/mise activate zsh)"
