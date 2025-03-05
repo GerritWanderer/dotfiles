@@ -5,3 +5,6 @@
 vim.keymap.set("i", "jk", "<ESC>", { desc = "exit insert mode with jk" })
 vim.keymap.set("n", "<leader>aa", "<cmd>PrtChatToggle<cr>", { desc = "Open AI Chat", remap = true })
 vim.keymap.set("n", "<leader>as", "<cmd>PrtChatRespond<cr>", { desc = "Submnit AI Chat", remap = true })
+vim.keymap.set("n", "<C-u>", "<C-u>zz>", { desc = "Scroll half page up centered", remap = true })
+vim.keymap.set("n", "<C-d>", "<C-d>zz>", { desc = "Scroll half page down centered", remap = true })
+-- swap ctrl+i and ctrl+o for better sanity
