@@ -43,8 +43,12 @@
 # resize-overlay-duration = 4s 200ms
 #
 
+
+# Custom behavior
+quit-after-last-window-closed = true
+window-padding-x = 8
+window-padding-y = 8
 font-family = "MesloLGM Nerd Font Mono"
-font-size = 15
 theme = "catppuccin-macchiato"
 cursor-style = bar
 cursor-style-blink = true
@@ -90,3 +94,6 @@ keybind = super+home=unbind
 keybind = super+page_down=unbind
 keybind = super+end=unbind
 keybind = super+comma=unbind
+
+# OS specific settings
+config-file = config.local
