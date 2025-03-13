@@ -104,4 +104,3 @@ source ~/.zshrc.local.secrets.zsh
 
 # oh-my-posh config
 eval "$(oh-my-posh init zsh --config ~/.config/oh-my-posh/catpuccin_macchiato.omp.json)"
-eval "$(/Users/gerrit.wanderer/.local/bin/mise activate zsh)"
