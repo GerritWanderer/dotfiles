@@ -103,4 +103,5 @@ source ~/.zshrc.local.zsh
 source ~/.zshrc.local.secrets.zsh
 
 # oh-my-posh config
+eval "$(mise activate zsh)"
 eval "$(oh-my-posh init zsh --config ~/.config/oh-my-posh/catpuccin_macchiato.omp.json)"
