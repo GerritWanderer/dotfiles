@@ -1,0 +1,9 @@
+[Trigger]
+Operation = Upgrade
+Type = Package
+Target = *
+
+[Action]
+Description = Creating snapper snapshot before system upgrade...
+When = PreTransaction
+Exec = /usr/bin/snapper -c root create --description "Pacman upgrade %Y-%m-%d %H:%M"
