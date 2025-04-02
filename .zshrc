@@ -95,6 +95,7 @@ export LANGUAGE='en'
 alias tasolidus='tmux-session-solidus.sh' 
 alias tadotfiles='tmux-session-dotfiles.sh' 
 alias tazig='tmux-session-zig.sh' 
+alias tadtc='tmux-session-dtc.sh' 
 setopt no_share_history
 unsetopt share_history
 
