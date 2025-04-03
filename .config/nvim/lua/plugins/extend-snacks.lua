@@ -4,10 +4,12 @@ return {
     picker = {
       sources = {
         explorer = {
-          auto_close = true,
+          hidden = true,
+          ignored = true,
+          auto_close = false,
           layout = {
             present = "sidebar",
-            preview = true,
+            preview = false,
           },
         },
       },
