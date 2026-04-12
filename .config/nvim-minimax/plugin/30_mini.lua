@@ -343,7 +343,7 @@ later(function() require('mini.align').setup() end)
 --
 -- See also:
 -- - `:h MiniBracketed` - overall mapping design and list of targets
-later(function() require('mini.bracketed').setup() end)
+-- later(function() require('mini.bracketed').setup() end)
 
 -- Remove buffers. Opened files occupy space in tabline and buffer picker.
 -- When not needed, they can be removed. Example usage:
