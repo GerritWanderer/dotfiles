@@ -11,10 +11,14 @@
             "id": "b18cb163c40202de",
             "type": "leaf",
             "state": {
-              "type": "empty",
-              "state": {},
+              "type": "markdown",
+              "state": {
+                "file": "00-Daily/2026/05-May/2026-05-09-Saturday.md",
+                "mode": "source",
+                "source": false
+              },
               "icon": "lucide-file",
-              "title": "New tab"
+              "title": "2026-05-09-Saturday"
             }
           }
         ]
@@ -184,5 +188,7 @@
     }
   },
   "active": "b18cb163c40202de",
-  "lastOpenFiles": []
+  "lastOpenFiles": [
+    "00-Daily/2026/05-May/2026-05-09-Saturday.md"
+  ]
 }

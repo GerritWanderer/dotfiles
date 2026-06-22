@@ -14,15 +14,15 @@ local nmap = function(lhs, rhs, desc)
   vim.keymap.set('n', lhs, rhs, { desc = desc })
 end
 
--- Clear hlsearch on Escape
+local remove_lsp_mapping = function(mode, lhs)
+  local map_desc = vim.fn.maparg(lhs, mode, false, true).desc
+  if map_desc == nil or string.find(map_desc, 'vim%.lsp') == nil then return end
+  vim.keymap.del(mode, lhs)
+end
+
+-- Clear hlsearch on Escape (n, i, s modes - like LazyVim)
+vim.keymap.set({ 'i', 's' }, '<Esc>', '<Esc><Cmd>nohlsearch<CR>', { desc = 'Escape and clear hlsearch' })
 nmap('<Esc>', '<Esc><Cmd>nohlsearch<CR>', 'Escape and clear hlsearch')
-
--- Save file
-vim.keymap.set({ 'n', 'i', 'x' }, '<C-s>', '<Cmd>write<CR><Esc>', { desc = 'Save file' })
-
--- Buffer navigation
-nmap('<S-h>', '<Cmd>bprevious<CR>', 'Prev buffer')
-nmap('<S-l>', '<Cmd>bnext<CR>',     'Next buffer')
 
 -- Paste linewise before/after current line
 -- Usage: `yiw` to yank a word and `]p` to put it on the next line.
@@ -61,14 +61,15 @@ nmap(']p', '<Cmd>exe "iput "  . v:register<CR>', 'Paste Below')
 -- Add an entry if you create a new group.
 Config.leader_group_clues = {
   { mode = 'n', keys = '<Leader>b', desc = '+Buffer' },
+  { mode = 'n', keys = '<Leader>e', desc = 'Explorer' },
   { mode = 'n', keys = '<Leader>f', desc = '+Find' },
   { mode = 'n', keys = '<Leader>g', desc = '+Git' },
   { mode = 'n', keys = '<Leader>l', desc = '+Language' },
   { mode = 'n', keys = '<Leader>m', desc = '+Map' },
   { mode = 'n', keys = '<Leader>o', desc = '+Other' },
   { mode = 'n', keys = '<Leader>q', desc = '+Quit' },
-  { mode = 'n', keys = '<Leader>s', desc = '+Session' },
-  { mode = 'n', keys = '<Leader>t', desc = '+Terminal' },
+  { mode = 'n', keys = '<Leader>s', desc = '+Search' },
+  -- { mode = 'n', keys = '<Leader>t', desc = '+Terminal' },
   { mode = 'n', keys = '<Leader>v', desc = '+Visits' },
   { mode = 'x', keys = '<Leader>g', desc = '+Git' },
   { mode = 'x', keys = '<Leader>l', desc = '+Language' },
@@ -94,74 +95,84 @@ local new_scratch_buffer = function()
   vim.api.nvim_win_set_buf(0, vim.api.nvim_create_buf(true, true))
 end
 
-nmap_leader('ba', '<Cmd>b#<CR>',                                 'Alternate')
-nmap_leader('bd', '<Cmd>lua MiniBufremove.delete()<CR>',         'Delete')
-nmap_leader('bD', '<Cmd>lua MiniBufremove.delete(0, true)<CR>',  'Delete!')
-nmap_leader('bs', new_scratch_buffer,                            'Scratch')
-nmap_leader('bw', '<Cmd>lua MiniBufremove.wipeout()<CR>',        'Wipeout')
-nmap_leader('bW', '<Cmd>lua MiniBufremove.wipeout(0, true)<CR>', 'Wipeout!')
+-- Buffer navigation
+nmap('<S-h>', '<Cmd>bprevious<CR>', 'Prev buffer')
+nmap('<S-l>', '<Cmd>bnext<CR>',     'Next buffer')
+nmap_leader('ba', '<Cmd>b#<CR>',                                'Alternate')
+nmap_leader('`', '<Cmd>b#<CR>',                                'Alternate')
+nmap_leader('bb', '<Cmd>lua MiniBufremove.delete()<CR>',        'Delete')
+-- nmap_leader('bD', '<Cmd>lua MiniBufremove.delete(0, true)<CR>', 'Delete!')
+nmap_leader('bs', new_scratch_buffer,                           'Scratch')
+nmap_leader('.', '<Cmd>lua Config.open_scratch()<CR>',          'Toggle Scratch Buffer (floating)')
+nmap_leader('S', '<Cmd>lua Snacks.scratch.select()<CR>',        'Select Scratch Buffer')
+nmap_leader('n', '<Cmd>lua MiniNotify.show_history()<CR>',      'Notification History')
+-- nmap_leader('bw', '<Cmd>lua MiniBufremove.wipeout()<CR>',        'Wipeout')
+-- nmap_leader('bW', '<Cmd>lua MiniBufremove.wipeout(0, true)<CR>', 'Wipeout!')
 
-nmap_leader('e', '<Cmd>Neotree toggle source=filesystem<CR>', 'Explorer (neo-tree)')
-nmap_leader('E', '<Cmd>Neotree reveal<CR>',                   'Explorer reveal file')
+nmap_leader('e', '<Cmd>lua Snacks.explorer()<CR>',        'Explorer')
+nmap_leader('E', '<Cmd>lua Snacks.explorer.reveal()<CR>', 'Explorer reveal')
 
--- f is for 'Fuzzy Find'. Common usage:
--- - `<Leader>ff` - find files; for best performance requires `ripgrep`
--- - `<Leader>fg` - find inside files; requires `ripgrep`
--- - `<Leader>fh` - find help tag
--- - `<Leader>fr` - resume latest picker
---
--- All these use 'telescope.nvim'. See `:h telescope.builtin` for an overview.
-local telescope = function(picker, opts)
-  return function() require('telescope.builtin')[picker](opts) end
+-- f is for 'Find'. Common usage:
+-- - `<Leader><space>` - find files
+-- - `<Leader>fb`     - find open buffers
+-- - `<Leader>fv`     - find recent files
+local snacks = function(picker, opts)
+  return function() require('snacks').picker[picker](opts) end
 end
 
-nmap_leader('f/', telescope('search_history'),                           '"/" history')
-nmap_leader('f:', telescope('command_history'),                          '":" history')
-nmap_leader('fa', telescope('git_status'),                               'Added hunks (all)')
-nmap_leader('fA', telescope('git_status'),                               'Added hunks (buf)')
-nmap_leader('fb', telescope('buffers'),                                  'Buffers')
-nmap_leader('fc', telescope('git_commits'),                              'Commits (all)')
-nmap_leader('fC', telescope('git_bcommits'),                             'Commits (buf)')
-nmap_leader('fd', telescope('diagnostics'),                              'Diagnostic workspace')
-nmap_leader('fD', telescope('diagnostics', { bufnr = 0 }),               'Diagnostic buffer')
-nmap_leader(' ', telescope('find_files'),                                'Files')
-nmap_leader('/', telescope('live_grep'),                                 'Grep live (cwd)')
-nmap_leader('fG', telescope('grep_string'),                              'Grep current word')
-nmap_leader('fh', telescope('help_tags'),                                'Help tags')
-nmap_leader('fH', telescope('highlights'),                               'Highlight groups')
-nmap_leader('fl', telescope('live_grep'),                                'Lines (all)')
-nmap_leader('fL', telescope('current_buffer_fuzzy_find'),                'Lines (buf)')
-nmap_leader('fm', telescope('git_status'),                               'Modified hunks (all)')
-nmap_leader('fM', telescope('git_status'),                               'Modified hunks (buf)')
-nmap_leader('fr', telescope('resume'),                                   'Resume')
-nmap_leader('fR', telescope('lsp_references'),                           'References (LSP)')
-nmap_leader('fs', telescope('lsp_dynamic_workspace_symbols'),            'Symbols workspace (live)')
-nmap_leader('fS', telescope('lsp_document_symbols'),                     'Symbols document')
-nmap_leader('fv', telescope('oldfiles'),                                 'Visit paths (all)')
-nmap_leader('fV', telescope('find_files'),                               'Visit paths (cwd)')
+nmap_leader(' ',  snacks('files'),   'Files')
+nmap_leader(',',  snacks('buffers'), 'Buffers')
+nmap_leader('fb', snacks('buffers'), 'Buffers')
+nmap_leader('fv', snacks('recent'),  'Recent (all)')
+nmap_leader('fV', snacks('files'),   'Files (cwd)')
+
+-- s is for 'Search'. Common usage:
+-- - `<Leader>/`  - live grep
+-- - `<Leader>sb` - buffer lines
+-- - `<Leader>sd` - diagnostics
+-- - `<Leader>sh` - help pages
+-- - `<Leader>sR` - resume last picker
+nmap_leader('/',  snacks('grep'),                'Grep live')
+nmap_leader('sb', snacks('lines'),               'Buffer Lines')
+nmap_leader('sB', snacks('grep_buffers'),        'Grep Open Buffers')
+nmap_leader('sw', snacks('grep_word'),           'Grep word')
+xmap_leader('sw', snacks('grep_word'),           'Grep word')
+nmap_leader('s"', snacks('registers'),           'Registers')
+nmap_leader('s/', snacks('search_history'),      'Search History')
+nmap_leader('sc', snacks('command_history'),     'Command History')
+nmap_leader('sC', snacks('commands'),            'Commands')
+nmap_leader('sd', snacks('diagnostics'),         'Diagnostics')
+nmap_leader('sD', snacks('diagnostics_buffer'),  'Buffer Diagnostics')
+nmap_leader('sj', snacks('jumps'),               'Jumps')
+nmap_leader('sk', snacks('keymaps'),             'Keymaps')
+nmap_leader('sl', snacks('loclist'),             'Location List')
+nmap_leader('sm', snacks('marks'),               'Marks')
+nmap_leader('sq', snacks('qflist'),              'Quickfix List')
+nmap_leader('sr', snacks('resume'),              'Resume')
+nmap_leader('ss', snacks('lsp_workspace_symbols'), 'Symbols workspace')
+nmap_leader('sS', snacks('lsp_symbols'),           'Symbols document')
+nmap_leader('su', snacks('undo'),                'Undotree')
 
 -- g is for 'Git'. Common usage:
 -- - `<Leader>gs` - show information at cursor
 -- - `<Leader>go` - toggle 'mini.diff' overlay to show in-buffer unstaged changes
 -- - `<Leader>gd` - show unstaged changes as a patch in separate tabpage
 -- - `<Leader>gL` - show Git log of current file
-local git_log_cmd = [[Git log --pretty=format:\%h\ \%as\ │\ \%s --topo-order]]
-local git_log_buf_cmd = git_log_cmd .. ' --follow -- %'
-
-nmap_leader('gg', '<Cmd>lua Config.open_lazygit()<CR>',      'Lazygit')
-
-nmap_leader('ga', '<Cmd>Git diff --cached<CR>',             'Added diff')
-nmap_leader('gA', '<Cmd>Git diff --cached -- %<CR>',        'Added diff buffer')
-nmap_leader('gc', '<Cmd>Git commit<CR>',                    'Commit')
-nmap_leader('gC', '<Cmd>Git commit --amend<CR>',            'Commit amend')
-nmap_leader('gd', '<Cmd>Git diff<CR>',                      'Diff')
-nmap_leader('gD', '<Cmd>Git diff -- %<CR>',                 'Diff buffer')
-nmap_leader('gl', '<Cmd>' .. git_log_cmd .. '<CR>',         'Log')
-nmap_leader('gL', '<Cmd>' .. git_log_buf_cmd .. '<CR>',     'Log buffer')
-nmap_leader('go', '<Cmd>lua MiniDiff.toggle_overlay()<CR>', 'Toggle overlay')
-nmap_leader('gs', '<Cmd>lua MiniGit.show_at_cursor()<CR>',  'Show at cursor')
-
-xmap_leader('gs', '<Cmd>lua MiniGit.show_at_cursor()<CR>', 'Show at selection')
+-- local git_log_cmd = [[Git log --pretty=format:\%h\ \%as\ │\ \%s --topo-order]]
+-- local git_log_buf_cmd = git_log_cmd .. ' --follow -- %'
+nmap_leader('gg', '<Cmd>lua Config.open_lazygit()<CR>',     'Lazygit')
+-- nmap_leader('ga', '<Cmd>Git diff --cached<CR>',             'Added diff')
+-- nmap_leader('gA', '<Cmd>Git diff --cached -- %<CR>',        'Added diff buffer')
+-- nmap_leader('gc', '<Cmd>Git commit<CR>',                    'Commit')
+-- nmap_leader('gC', '<Cmd>Git commit --amend<CR>',            'Commit amend')
+-- nmap_leader('gd', '<Cmd>Git diff<CR>',                      'Diff')
+-- nmap_leader('gD', '<Cmd>Git diff -- %<CR>',                 'Diff buffer')
+-- nmap_leader('gl', '<Cmd>' .. git_log_cmd .. '<CR>',         'Log')
+-- nmap_leader('gL', '<Cmd>' .. git_log_buf_cmd .. '<CR>',     'Log buffer')
+-- nmap_leader('go', '<Cmd>lua MiniDiff.toggle_overlay()<CR>', 'Toggle overlay')
+-- nmap_leader('gs', '<Cmd>lua MiniGit.show_at_cursor()<CR>',  'Show at cursor')
+--
+-- xmap_leader('gs', '<Cmd>lua MiniGit.show_at_cursor()<CR>', 'Show at selection')
 
 -- l is for 'Language'. Common usage:
 -- - `<Leader>ld` - show more diagnostic details in a floating window
@@ -176,19 +187,33 @@ xmap_leader('lf', '<Cmd>lua require("conform").format()<CR>', 'Format selection'
 
 -- LSP navigation (LazyVim style). Common usage:
 -- - `gd` - goto definition
--- - `gr` - references  NOTE: overrides mini.operators replace (`gr`)
+-- - `gr` - references
 -- - `gI` - goto implementation
 -- - `gy` - goto type definition
--- - `gD` - goto declaration
 -- - `K`  - hover docs
 -- - `gK` - signature help
+
+-- Remove Neovim built-in LSP defaults that conflict with our gr mapping
+remove_lsp_mapping('n', 'gra')
+remove_lsp_mapping('x', 'gra')
+remove_lsp_mapping('n', 'gri')
+remove_lsp_mapping('n', 'grn')
+remove_lsp_mapping('n', 'grr')
+remove_lsp_mapping('n', 'grt')
+remove_lsp_mapping('n', 'grx')
+
 nmap('gd', '<Cmd>lua vim.lsp.buf.definition()<CR>',      'Goto Definition')
-nmap('gr', '<Cmd>lua vim.lsp.buf.references()<CR>',      'References')
+nmap('gr', snacks('lsp_references'),              'References')
 nmap('gI', '<Cmd>lua vim.lsp.buf.implementation()<CR>',  'Goto Implementation')
 nmap('gy', '<Cmd>lua vim.lsp.buf.type_definition()<CR>', 'Goto T[y]pe Definition')
-nmap('gD', '<Cmd>lua vim.lsp.buf.declaration()<CR>',     'Goto Declaration')
 nmap('K',  '<Cmd>lua vim.lsp.buf.hover()<CR>',           'Hover')
 nmap('gK', '<Cmd>lua vim.lsp.buf.signature_help()<CR>',  'Signature Help')
+
+-- Next/prev LSP reference ]] / [[ and <a-n> / <a-p>)
+nmap(']]',    function() Snacks.words.jump( 1, true) end, 'Next Reference')
+nmap('[[',    function() Snacks.words.jump(-1, true) end, 'Prev Reference')
+nmap('<A-n>', function() Snacks.words.jump( 1, true) end, 'Next Reference')
+nmap('<A-p>', function() Snacks.words.jump(-1, true) end, 'Prev Reference')
 
 -- m is for 'Map'. Common usage:
 -- - `<Leader>mt` - toggle map from 'mini.map' (closed by default)
@@ -206,35 +231,51 @@ nmap_leader('qq', '<Cmd>quitall<CR>', 'Quit Neovim')
 -- - `<Leader>oz` - toggle between "zoomed" and regular view of current buffer
 nmap_leader('or', '<Cmd>lua MiniMisc.resize_window()<CR>', 'Resize to default width')
 nmap_leader('ot', '<Cmd>lua MiniTrailspace.trim()<CR>',    'Trim trailspace')
-nmap_leader('oz', '<Cmd>lua MiniMisc.zoom()<CR>',          'Zoom toggle')
-
--- s is for 'Session'. Common usage:
--- - `<Leader>sn` - start new session
--- - `<Leader>sr` - read previously started session
--- - `<Leader>sd` - delete previously started session
-local session_new = 'MiniSessions.write(vim.fn.input("Session name: "))'
-
-nmap_leader('sd', '<Cmd>lua MiniSessions.select("delete")<CR>', 'Delete')
-nmap_leader('sn', '<Cmd>lua ' .. session_new .. '<CR>',         'New')
-nmap_leader('sr', '<Cmd>lua MiniSessions.select("read")<CR>',   'Read')
-nmap_leader('sw', '<Cmd>lua MiniSessions.write()<CR>',          'Write current')
+nmap_leader('oz', '<Cmd>lua Config.toggle_zen()<CR>',      'Zen toggle')
 
 -- t is for 'Terminal'
-nmap_leader('tT', '<Cmd>horizontal term<CR>', 'Terminal (horizontal)')
-nmap_leader('tt', '<Cmd>vertical term<CR>',   'Terminal (vertical)')
+-- nmap_leader('tT', '<Cmd>horizontal term<CR>', 'Terminal (horizontal)')
+-- nmap_leader('tt', '<Cmd>vertical term<CR>',   'Terminal (vertical)')
 
 -- v is for 'Visits'. Common usage:
 -- - `<Leader>vv` - add    "core" label to current file.
 -- - `<Leader>vV` - remove "core" label to current file.
 -- - `<Leader>vc` - pick among all files with "core" label.
-nmap_leader('vc', telescope('oldfiles'),                               'Core visits (all)')
-nmap_leader('vC', telescope('find_files'),                             'Core visits (cwd)')
+local mini_visits_picker = function(label, cwd)
+  return function()
+    local paths = MiniVisits.list_paths(cwd, { filter = label })
+    Snacks.picker.pick({
+      title = label and ('Visits: ' .. label) or 'Visit History',
+      finder = function()
+        return vim.tbl_map(function(path)
+          return { file = path, text = path }
+        end, paths)
+      end,
+      format = 'file',
+    })
+  end
+end
+
+nmap_leader('vc', mini_visits_picker('core'),      'Core visits (all)')
+nmap_leader('vC', mini_visits_picker('core', '.'), 'Core visits (cwd)')
 nmap_leader('vv', '<Cmd>lua MiniVisits.add_label("core")<CR>',    'Add "core" label')
 nmap_leader('vV', '<Cmd>lua MiniVisits.remove_label("core")<CR>', 'Remove "core" label')
-nmap_leader('vl', '<Cmd>lua MiniVisits.add_label()<CR>',          'Add label')
-nmap_leader('vL', '<Cmd>lua MiniVisits.remove_label()<CR>',       'Remove label')
+
+-- incremental selection treesitter/lsp
+vim.keymap.set({ "n", "x", "o" }, "<A-o>", function()
+  if vim.treesitter.get_parser(nil, nil, { error = false }) then
+    require("vim.treesitter._select").select_parent(vim.v.count1)
+  else
+    vim.lsp.buf.selection_range(vim.v.count1)
+  end
+end, { desc = "Select parent treesitter node or outer incremental lsp selections" })
+
+vim.keymap.set({ "n", "x", "o" }, "<A-i>", function()
+  if vim.treesitter.get_parser(nil, nil, { error = false }) then
+    require("vim.treesitter._select").select_child(vim.v.count1)
+  else
+    vim.lsp.buf.selection_range(-vim.v.count1)
+  end
+end, { desc = "Select child treesitter node or inner incremental lsp selections" })
 
 -- stylua: ignore end
-
-nmap('<leader>.', '<Cmd>lua Config.open_scratch()<CR>',     'Scratch (floating)')
-nmap('<leader>dn', '<Cmd>lua Config.open_daily_note()<CR>', 'Daily note (floating)')

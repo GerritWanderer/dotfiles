@@ -18,7 +18,6 @@ now_if_args(function()
   add({
     'https://github.com/nvim-treesitter/nvim-treesitter',
     'https://github.com/nvim-treesitter/nvim-treesitter-textobjects',
-    'https://github.com/MeanderingProgrammer/treesitter-modules.nvim',
   })
 
   local languages = {
@@ -37,7 +36,8 @@ now_if_args(function()
       table.insert(filetypes, ft)
     end
   end
-  Config.new_autocmd('FileType', filetypes, function(ev) vim.treesitter.start(ev.buf) end, 'Start tree-sitter')
+  local ts_start = function(ev) vim.treesitter.start(ev.buf) end
+  Config.new_autocmd('FileType', filetypes, ts_start, 'Start tree-sitter')
 end)
 
 -- ┌─────────────────────────┐
@@ -47,7 +47,8 @@ now_if_args(function()
   add({ 'https://github.com/neovim/nvim-lspconfig' })
   vim.lsp.enable({
     'lua_ls',    -- Install: brew install lua-language-server
-    'ts_ls',     -- Install: npm install -g typescript typescript-language-server
+    'tsgo',      -- Install: npm install @typescript/native-preview
+    -- 'ts_ls',  -- Install: npm install -g typescript typescript-language-server
     'eslint',    -- Install: npm install -g vscode-langservers-extracted
   })
 end)
@@ -56,17 +57,6 @@ end)
 -- │ Formatting              │
 -- └─────────────────────────┘
 later(function() add({ 'https://github.com/stevearc/conform.nvim' }) end)
-
--- ┌─────────────────────────┐
--- │ Neotree                 │
--- └─────────────────────────┘
-later(function()
-  add({
-    'https://github.com/nvim-neo-tree/neo-tree.nvim',
-    'https://github.com/nvim-lua/plenary.nvim',
-    'https://github.com/MunifTanjim/nui.nvim',
-  })
-end)
 
 -- ┌─────────────────────────┐
 -- │ UI enhancements         │
@@ -79,17 +69,31 @@ now(function()
     'https://github.com/MunifTanjim/nui.nvim',
   })
   require('noice').setup({
-    notify = { enabled = false },
+    notify = { enabled = true },
     lsp = {
       override = {
-        ['vim.lsp.util.convert_input_to_markdown_lines'] = true,
-        ['vim.lsp.util.stylize_markdown'] = true,
+        ["vim.lsp.util.convert_input_to_markdown_lines"] = true,
+        ["vim.lsp.util.stylize_markdown"] = true,
+        ["cmp.entry.get_documentation"] = true,
+      },
+    },
+    routes = {
+      {
+        filter = {
+          event = "msg_show",
+          any = {
+            { find = "%d+L, %d+B" },
+            { find = "; after #%d+" },
+            { find = "; before #%d+" },
+          },
+        },
+        view = "mini",
       },
     },
     presets = {
-      bottom_search         = true,  -- classic bottom search bar
-      command_palette       = true,  -- cmdline and popupmenu positioned together
-      long_message_to_split = true,  -- long messages go to a split
+      bottom_search = true,
+      command_palette = true,
+      long_message_to_split = true,
     },
   })
 end)
@@ -104,22 +108,21 @@ now(function()
 end)
 
 -- ┌─────────────────────────┐
+-- │ Snacks                  │
+-- └─────────────────────────┘
+later(function() add({ 'https://github.com/folke/snacks.nvim' }) end)
+
+-- ┌─────────────────────────┐
 -- │ Smart splits            │
 -- └─────────────────────────┘
 later(function() add({ 'https://github.com/mrjones2014/smart-splits.nvim' }) end)
 
 -- ┌─────────────────────────┐
+-- │ Completion              │
+-- └─────────────────────────┘
+later(function() add({ { src = 'https://github.com/Saghen/blink.cmp', version = 'v1.10.1' } }) end)
+
+-- ┌─────────────────────────┐
 -- │ Jump / navigation       │
 -- └─────────────────────────┘
 later(function() add({ 'https://github.com/folke/flash.nvim' }) end)
-
--- ┌─────────────────────────┐
--- │ Telescope               │
--- └─────────────────────────┘
-later(function()
-  add({
-    'https://github.com/nvim-telescope/telescope.nvim',
-    'https://github.com/nvim-lua/plenary.nvim',
-    'https://github.com/nvim-tree/nvim-web-devicons',
-  })
-end)

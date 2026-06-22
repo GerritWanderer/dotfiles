@@ -1,4 +1,6 @@
+prettier
 typescript
 typescript-language-server
 vscode-langservers-extracted
-prettier
+@biomejs/biome
+@typescript/native-preview

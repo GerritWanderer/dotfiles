@@ -23,6 +23,5 @@
 README.md
 Brewfile
 Installfile.linux
-etc
 scripts
 .envrc.example

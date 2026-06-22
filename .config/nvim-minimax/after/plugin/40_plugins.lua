@@ -10,20 +10,58 @@ local add = vim.pack.add
 local now, now_if_args, later = Config.now, Config.now_if_args, Config.later
 
 -- ┌─────────────────────────┐
--- │ Tree-sitter             │
+-- │ Completion              │
 -- └─────────────────────────┘
-now_if_args(function()
-  require('treesitter-modules').setup({
-    incremental_selection = {
-      enable = true,
-      keymaps = {
-        init_selection    = '<A-i>',
-        node_incremental  = '<A-i>',
-        node_decremental  = '<A-o>',
-        scope_incremental = false,
+later(function()
+  require('blink.cmp').setup({
+    -- Use blink's built-in snippet handling (LSP snippets + friendly-snippets)
+    snippets = { preset = 'default' },
+
+    appearance = {
+      -- Correct icon alignment for Nerd Font Mono
+      nerd_font_variant = 'mono',
+    },
+
+    sources = {
+      default = { 'lsp', 'path', 'snippets', 'buffer' },
+    },
+
+    keymap = {
+      -- mini.keymap owns <Tab>/<S-Tab>/<CR>/<BS> — blink must not double-bind them
+      preset = 'none',
+    },
+
+    completion = {
+      menu = {
+        draw = {
+          -- Treesitter-based syntax highlighting in completion menu for LSP items
+          treesitter = { 'lsp' },
+        },
+      },
+      -- Show documentation popup alongside the completion menu
+      documentation = { auto_show = true, auto_show_delay_ms = 200 },
+      -- No ghost text
+      ghost_text = { enabled = false },
+    },
+    fuzzy = { implementation = "lua" },
+    cmdline = {
+      enabled = true,
+      keymap = { preset = 'cmdline' },
+      completion = {
+        list = { selection = { preselect = false } },
+        -- Only auto-show menu for : commands, not / or ?
+        menu = {
+          auto_show = function(ctx) return vim.fn.getcmdtype() == ':' end,
+        },
       },
     },
+
+    -- Advertise blink.cmp capabilities to LSP servers
+    -- (replaces MiniCompletion.get_lsp_capabilities())
   })
+
+  -- Register blink.cmp capabilities with all LSP servers
+  vim.lsp.config('*', { capabilities = require('blink.cmp').get_lsp_capabilities() })
 end)
 
 -- ┌─────────────────────────┐
@@ -35,80 +73,15 @@ later(function()
       lsp_format = 'fallback',
     },
     formatters_by_ft = {
-      javascript      = { 'prettier' },
-      javascriptreact = { 'prettier' },
-      typescript      = { 'prettier' },
-      typescriptreact = { 'prettier' },
-      json            = { 'prettier' },
-      jsonc           = { 'prettier' },
+      javascript      = { 'biome' },
+      javascriptreact = { 'biome' },
+      typescript      = { 'biome' },
+      typescriptreact = { 'biome' },
+      json            = { 'biome' },
+      jsonc           = { 'biome' },
       css             = { 'prettier' },
       html            = { 'prettier' },
       markdown        = { 'prettier' },
-    },
-  })
-end)
-
--- ┌─────────────────────────┐
--- │ Neotree                 │
--- └─────────────────────────┘
-later(function()
-  require('neo-tree').setup({
-    sources = { 'filesystem', 'buffers', 'git_status' },
-    open_files_do_not_replace_types = { 'terminal', 'qf' },
-
-    filesystem = {
-      bind_to_cwd = false,
-      use_libuv_file_watcher = true,
-      follow_current_file = { enabled = true, leave_dirs_open = true },
-      filtered_items = {
-        visible = true,
-        show_hidden_count = true,
-        hide_dotfiles = false,
-        hide_gitignored = true,
-        hide_by_name = { 'node_modules', 'git' },
-        never_show = { '.git' },
-      },
-    },
-
-    buffers = {
-      follow_current_file = { enabled = true, leave_dirs_open = true },
-    },
-
-    window = {
-      mappings = {
-        ['<space>'] = 'none',
-        ['s']       = false,
-        ['h']       = 'close_node',
-        ['l']       = function(state)
-          local node = state.tree:get_node()
-          if node.type == 'directory' then
-            state.commands['toggle_node'](state)
-          else
-            local neo_win = vim.api.nvim_get_current_win()
-            state.commands['open'](state)
-            vim.api.nvim_set_current_win(neo_win)
-          end
-        end,
-        ['<cr>']    = function(state)
-          state.commands['open'](state)
-          require('neo-tree.command').execute({ action = 'close' })
-        end,
-      },
-    },
-
-    default_component_configs = {
-      indent = {
-        with_expanders       = true,
-        expander_collapsed   = '',
-        expander_expanded    = '',
-        expander_highlight   = 'NeoTreeExpander',
-      },
-      git_status = {
-        symbols = {
-          unstaged = '󰄱',
-          staged   = '',
-        },
-      },
     },
   })
 end)
@@ -128,100 +101,68 @@ later(function()
 end)
 
 -- ┌─────────────────────────┐
--- │ Telescope               │
+-- │ Snacks                  │
 -- └─────────────────────────┘
 later(function()
-  require('telescope').setup({
-    defaults = {
-      sorting_strategy = 'ascending',
-      layout_config = { prompt_position = 'top' },
-      mappings = {
-        i = { ['<C-n>'] = 'cycle_history_next', ['<C-p>'] = 'cycle_history_prev', ['<C-g>'] = 'to_fuzzy_refine' },
+  require('snacks').setup({
+    explorer = { enabled = true },
+    lazygit  = { enabled = true },
+    notify   = { enabled = true },
+    picker = {
+      enabled = true,
+      sources = {
+        explorer = {
+          auto_close = true,
+          hidden = true,
+          ignored = true
+        },
+        files = { hidden = true },
+        grep  = { hidden = true },
+      },
+      win = {
+        input = {
+          keys = {
+            ['<C-n>'] = { 'history_back',    mode = { 'i', 'n' } },
+            ['<C-p>'] = { 'history_forward', mode = { 'i', 'n' } },
+          },
+        },
       },
     },
-    pickers = {
-      find_files = { hidden = true },
-      live_grep  = { additional_args = { '--hidden' } },
+    scratch  = { enabled = true },
+    terminal = { enabled = true },
+    toggle   = { enabled = true },
+    words    = { enabled = true },
+    zen      = { enabled = true, toggles = { dim = false } },
+    styles   = {
+      zen = {
+        width = 160,
+        backdrop = { transparent = false },
+      },
     },
+    -- disable all other snacks modules
+    bigfile      = { enabled = false },
+    bufdelete    = { enabled = false },
+    dashboard    = { enabled = false },
+    debug        = { enabled = false },
+    dim          = { enabled = false },
+    git          = { enabled = false },
+    gitbrowse    = { enabled = false },
+    image        = { enabled = false },
+    indent       = { enabled = false },
+    input        = { enabled = false },
+    layout       = { enabled = false },
+    notifier     = { enabled = false },
+    profiler     = { enabled = false },
+    quickfile    = { enabled = false },
+    rename       = { enabled = false },
+    scope        = { enabled = false },
+    scroll       = { enabled = false },
+    statuscolumn = { enabled = false },
+    win          = { enabled = false },
   })
-end)
-
--- ┌─────────────────────────┐
--- │ Scratchpad              │
--- └─────────────────────────┘
--- A persistent floating scratch buffer, toggled with <leader>.
--- Content is saved to disk and survives across Neovim sessions.
-now(function()
-  local scratch_file    = vim.fn.stdpath('data') .. '/scratch.ts'
-  local scratch_augroup = vim.api.nvim_create_augroup('MiniMaxScratch', { clear = true })
-
-  Config.open_scratch = Config.make_modal({
-    title = 'Scratch',
-    create_buf = function(modal)
-      local b = vim.fn.bufadd(scratch_file)
-      vim.fn.bufload(b)
-      vim.bo[b].buflisted = false
-      vim.bo[b].filetype  = 'typescript'
-      vim.api.nvim_create_autocmd('BufLeave', {
-        group    = scratch_augroup,
-        buffer   = b,
-        callback = function()
-          if vim.bo[b].modified then
-            vim.api.nvim_buf_call(b, function() vim.cmd('silent write') end)
-          end
-        end,
-      })
-      vim.keymap.set('n', 'q', modal.close, { buffer = b, nowait = true, desc = 'Close scratch' })
-      return b
-    end,
-  })
-end)
-
--- ┌─────────────────────────┐
--- │ Daily Note              │
--- └─────────────────────────┘
--- Open today's daily note in a floating window, toggled with <leader>dn.
--- Path mirrors the Obsidian structure: ~/Documents/notes/00-Daily/YYYY/MM-Month/YYYY-MM-DD-Weekday.md
-now(function()
-  local daily_file_cached = nil
-  local daily_augroup     = vim.api.nvim_create_augroup('MiniMaxDailyNote', { clear = true })
-
-  local get_daily_file = function()
-    return string.format(
-      '%s/00-Daily/%s/%s-%s/%s-%s.md',
-      vim.fn.expand('~/Documents/notes'),
-      os.date('%Y'),
-      os.date('%m'),
-      os.date('%B'),
-      os.date('%Y-%m-%d'),
-      os.date('%A')
-    )
-  end
-
-  Config.open_daily_note = Config.make_modal({
-    title             = function() return os.date('%Y-%m-%d') end,
-    should_invalidate = function(_buf) return get_daily_file() ~= daily_file_cached end,
-    create_buf        = function(modal)
-      local daily_file = get_daily_file()
-      daily_file_cached = daily_file
-      vim.fn.mkdir(vim.fn.fnamemodify(daily_file, ':h'), 'p')
-      local b = vim.fn.bufadd(daily_file)
-      vim.fn.bufload(b)
-      vim.bo[b].buflisted = false
-      vim.bo[b].filetype  = 'markdown'
-      vim.api.nvim_create_autocmd('BufLeave', {
-        group    = daily_augroup,
-        buffer   = b,
-        callback = function()
-          if vim.bo[b].modified then
-            vim.api.nvim_buf_call(b, function() vim.cmd('silent write') end)
-          end
-        end,
-      })
-      vim.keymap.set('n', 'q', modal.close, { buffer = b, nowait = true, desc = 'Close daily note' })
-      return b
-    end,
-  })
+  Config.open_lazygit = function() require('snacks').lazygit() end
+  Config.open_scratch = function() require('snacks').scratch() end
+  Config.toggle_zen = function() require('snacks').zen() end
 end)
 
 -- ┌─────────────────────────┐

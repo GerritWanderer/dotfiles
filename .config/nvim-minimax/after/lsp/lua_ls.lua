@@ -12,7 +12,7 @@
 -- basic config and can be further improved.
 return {
   on_attach = function(client, buf_id)
-    -- Reduce very long list of triggers for better 'mini.completion' experience
+    -- Reduce very long list of triggers for a less noisy completion experience
     client.server_capabilities.completionProvider.triggerCharacters =
       { '.', ':', '#', '(' }
 

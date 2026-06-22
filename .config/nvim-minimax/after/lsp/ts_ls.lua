@@ -6,7 +6,7 @@
 -- Install:  npm install -g typescript-language-server typescript
 return {
   on_attach = function(client, _)
-    -- Slim down trigger characters for better 'mini.completion' experience
+    -- Slim down trigger characters for a less noisy completion experience
     client.server_capabilities.completionProvider.triggerCharacters =
       { '.', '"', "'", '`', '/', '@', '<' }
   end,

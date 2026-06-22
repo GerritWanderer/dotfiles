@@ -6,9 +6,23 @@
 .bashrc.omarchy
 .zshrc.cachyos
 .zshrc.osx
+.zshrc.tmux
 
-# platform specific ghostty files
+# skip dev utilities for gaming platform
+.ssh
+.default-gems
+.default-npm-packages
 .config/ghostty/macosx
+.config/tmux/tmux.conf
+.config/kitty/kitty.conf
+.config/opencode/opencode.json
+.config/direnv
+.config/nvim-lazyvim
+.config/nvim-minimax
+.config/nvim-obsidian
+.config/oh-my-posh
+
+.config/lofitui
 
 # platform specific tmux files
 .config/systemd
@@ -22,6 +36,6 @@
 README.md
 Brewfile
 Installfile.linux
-etc
+Installfile.tmux
 scripts
 .envrc.example

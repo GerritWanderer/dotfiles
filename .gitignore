@@ -4,3 +4,4 @@
 .config/nvim
 .config/ghostty/config
 .local/bin/claude
+.local/bin/oh-my-posh

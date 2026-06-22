@@ -24,7 +24,6 @@ README.md
 Brewfile
 Installfile.linux
 Installfile.tmux
-etc
 scripts
 .ssh
 .envrc.example
