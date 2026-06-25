@@ -1,0 +1,9 @@
+[group.daily]
+# Directories listed here will automatically use this group when creating notes.
+paths = ["00-Daily"]
+
+[group.daily.note]
+default-title = "Daily Note"
+filename = "{{format-date now '%Y/%m-%B/%Y-%m-%d-%A'}}"
+extension = "md"
+template = "daily.md"
