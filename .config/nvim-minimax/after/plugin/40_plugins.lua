@@ -158,7 +158,7 @@ later(function()
     scope        = { enabled = false },
     scroll       = { enabled = false },
     statuscolumn = { enabled = false },
-    win          = { enabled = false },
+    win          = { enabled = true },
   })
   Config.open_lazygit = function() require('snacks').lazygit() end
   Config.open_scratch = function() require('snacks').scratch() end

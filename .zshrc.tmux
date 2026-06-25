@@ -62,7 +62,7 @@ export PROMPT_COMMAND="history -a; $PROMPT_COMMAND"
 export EDITOR='nvim'
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-alias ovim="NVIM_APPNAME=nvim-obsidian nvim"
+alias lvim="NVIM_APPNAME=lvim nvim"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 # Word deletion: ctrl+w and ctrl+backspace (ghostty sends \x17 for both)
