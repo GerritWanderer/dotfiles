@@ -1,5 +1,8 @@
 [notebook]
 dir = "~/Documents/notes"
 
+[tool]
+editor = "NVIM_APPNAME=nvim-lazyvim nvim"
+
 [alias]
 daily = 'zk new --no-input "$ZK_NOTEBOOK_DIR/00-Daily"'
