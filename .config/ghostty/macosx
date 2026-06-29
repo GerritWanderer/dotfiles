@@ -12,9 +12,6 @@ font-size = "14.5"
 font-thicken = true
 font-thicken-strength = 200
 foreground = #c0caf5
-keybind = =scroll_page_up
-keybind = =equalize_splits
-keybind = =goto_tab:4
 macos-non-native-fullscreen = padded-notch
 macos-window-buttons = hidden
 maximize = true
