@@ -11,7 +11,6 @@
 # platform specific ghostty and hypr files
 .config/kitty
 .config/lofitui
-.config/nvim-lazyvim
 .config/nvim-minimax
 
 # platform specific stow files
