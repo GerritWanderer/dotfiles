@@ -3,6 +3,9 @@
 .stow-local-ignore
 .config/nvim
 .config/ghostty/config
+.config/herdr/herdr-client.log
+.config/herdr/herdr-server.log
+.config/herdr/session.json
 .local/bin/claude
 .local/bin/oh-my-posh
 Documents/notes/.zk/notebook.db

@@ -25,7 +25,7 @@ previous_workspace = ["prefix+shift+p", "alt+up"]
 
 switch_tab = ["prefix+1..9", "alt+1..9"]
 
-focus_pane_left = ["prefix+h", "ctrl+alt+left"]
-focus_pane_down = ["prefix+j", "ctrl+alt+down"]
-focus_pane_up = ["prefix+k", "ctrl+alt+up"]
-focus_pane_right = ["prefix+l", "ctrl+alt+right"]
+focus_pane_left = ["ctrl+h", "ctrl+alt+h"]
+focus_pane_down = ["ctrl+j", "ctrl+alt+j"]
+focus_pane_up = ["ctrl+k", "ctrl+alt+k"]
+focus_pane_right = ["ctrl+l", "ctrl+alt+l"]
