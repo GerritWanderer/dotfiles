@@ -6,6 +6,8 @@
 .config/herdr/herdr-client.log
 .config/herdr/herdr-server.log
 .config/herdr/session.json
+.config/herdr/plugins.json
+.config/herdr/release-notes.json
 .local/bin/claude
 .local/bin/oh-my-posh
 Documents/notes/.zk/notebook.db
