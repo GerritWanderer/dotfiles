@@ -14,17 +14,38 @@ delivery = "system"
 
 [keys]
 prefix = "ctrl+space"
-detach = "prefix+q"
+detach = "prefix+d"
+reload_config = "prefix+q"
 toggle_sidebar = "prefix+b"
+help = "prefix+?"
+copy_mode = "prefix+["
 
+# Panes
+split_horizontal = ["prefix+h"]
+split_vertical = ["prefix+v"]
+close_pane = ["prefix+x"]
+zoom = "prefix+z"
+focus_pane_left = "ctrl+alt+h"
+focus_pane_down = "ctrl+alt+j"
+focus_pane_up = "ctrl+alt+k"
+focus_pane_right = "ctrl+alt+l"
+
+# Tabs
+new_tab = "prefix+c"
+rename_tab = "prefix+r"
+close_tab = "prefix+k"
+switch_tab = ["prefix+1..9", "alt+1..9"]
+previous_tab = ["prefix+p", "alt+left"]
+next_tab = ["prefix+n", "alt+right"]
+
+# Workspaces
 new_workspace = "prefix+shift+c"
 rename_workspace = "prefix+shift+r"
 close_workspace = "prefix+shift+k"
 next_workspace = ["prefix+shift+n", "alt+down"]
 previous_workspace = ["prefix+shift+p", "alt+up"]
 
-switch_tab = ["prefix+1..9", "alt+1..9"]
-
+# Smart Splits
 [[keys.command]]
 key = "ctrl+h"
 type = "plugin_action"
@@ -48,3 +69,24 @@ key = "ctrl+l"
 type = "plugin_action"
 command = "smart-splits.nvim.right"
 description = "navigate right (vim/herdr)"
+
+# Resizing
+[[keys.command]]
+key = "ctrl+alt+shift+left"
+type = "shell"
+command = "herdr pane resize --current --direction left --amount 0.03"
+
+[[keys.command]]
+key = "ctrl+alt+shift+down"
+type = "shell"
+command = "herdr pane resize --current --direction down --amount 0.03"
+
+[[keys.command]]
+key = "ctrl+alt+shift+up"
+type = "shell"
+command = "herdr pane resize --current --direction up --amount 0.03"
+
+[[keys.command]]
+key = "ctrl+alt+shift+right"
+type = "shell"
+command = "herdr pane resize --current --direction right --amount 0.03"
