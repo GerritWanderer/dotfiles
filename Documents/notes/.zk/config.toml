@@ -1,5 +1,10 @@
+[group.inbox]
+paths = ["01-Inbox"]
+
+[group.inbox.note]
+filename = "{{slug title}}"
+
 [group.daily]
-# Directories listed here will automatically use this group when creating notes.
 paths = ["00-Daily"]
 
 [group.daily.note]
