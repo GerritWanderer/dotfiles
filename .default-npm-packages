@@ -4,3 +4,5 @@ typescript-language-server
 vscode-langservers-extracted
 @biomejs/biome
 @typescript/native-preview
+@fission-ai/openspec
+obsidian-headless
