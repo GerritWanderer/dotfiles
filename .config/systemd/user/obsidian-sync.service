@@ -4,7 +4,7 @@ After=network-online.target
 Wants=network-online.target
 [Service]
 Type=simple
-ExecStart=/home/gerrit/.local/share/mise/shims/ob sync --path %h/Documents/notes --continuous
+ExecStart=%h/.local/share/mise/shims/ob sync --path %h/Documents/notes --continuous
 Restart=on-failure
 RestartSec=10s
 [Install]
