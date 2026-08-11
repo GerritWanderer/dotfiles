@@ -14,6 +14,9 @@
         "Authorization": "Bearer {env:GITHUB_PAT}"
       },
       "enabled": false
+    },
+    "google-drive": {
+      "enabled": true
     }
   }
 }
