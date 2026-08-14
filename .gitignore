@@ -9,5 +9,6 @@
 .config/herdr/plugins.json
 .config/herdr/release-notes.json
 .local/bin/claude
+.local/bin/herdr
 .local/bin/oh-my-posh
 Documents/notes/.zk/notebook.db
