@@ -1,23 +1,29 @@
 onboarding = false
-[terminal]
-default_shell = "zsh"
 
 [theme]
 name = "tokyo-night"
 auto_switch = false
 
-[ui]
-agent_panel_sort = "spaces"
+[theme.custom]
+# The active tab is drawn as panel_bg text on an accent background, so panel_bg
+# has to be dark for it to read - same colors as status-left's "#[fg=black,bg=blue]"
+panel_bg = "black"
 
-[ui.toast]
-delivery = "system"
+[terminal]
+default_shell = "zsh"
+# Matches -c "#{pane_current_path}" on every split, window, and session
+new_cwd = "follow"
 
 [keys]
 prefix = "ctrl+space"
-detach = "prefix+d"
+
+# Config and help
 reload_config = "prefix+q"
-toggle_sidebar = "prefix+b"
 help = "prefix+?"
+detach = "prefix+d"
+toggle_sidebar = "prefix+b"
+
+# Copy mode
 copy_mode = "prefix+["
 
 # Panes
@@ -25,27 +31,75 @@ split_horizontal = ["prefix+h"]
 split_vertical = ["prefix+v"]
 close_pane = ["prefix+x"]
 zoom = "prefix+z"
+# last_pane = "prefix+;"
+
 focus_pane_left = "ctrl+alt+h"
 focus_pane_down = "ctrl+alt+j"
 focus_pane_up = "ctrl+alt+k"
 focus_pane_right = "ctrl+alt+l"
 
-# Tabs
+# resize_mode = ["prefix+ctrl+left", "prefix+ctrl+down", "prefix+ctrl+up", "prefix+ctrl+right"]
+
+# Like resize-pane on C-M-S-arrows
+resize_pane_left = "ctrl+alt+shift+h"
+resize_pane_down = "ctrl+alt+shift+j"
+resize_pane_up = "ctrl+alt+shift+k"
+resize_pane_right = "ctrl+alt+shift+l"
+
+# No tmux equivalent; herdr's default prefix+shift+p is taken by previous session
+rename_pane = "prefix+shift+o"
+
+# Windows -> tabs
 new_tab = "prefix+c"
 rename_tab = "prefix+r"
 close_tab = "prefix+k"
 switch_tab = ["prefix+1..9", "alt+1..9"]
-previous_tab = ["prefix+p", "alt+left"]
-next_tab = ["prefix+n", "alt+right"]
+# previous_tab = ["prefix+p", "alt+left"]
+# next_tab = ["prefix+n", "alt+right"]
 
-# Workspaces
+# Like swap-window -t -1/+1 on M-S-Left/Right
+# move_tab_previous = "alt+shift+left"
+# move_tab_next = "alt+shift+right"
+
+# Sessions -> workspaces
 new_workspace = "prefix+shift+c"
 rename_workspace = "prefix+shift+r"
 close_workspace = "prefix+shift+k"
-next_workspace = ["prefix+shift+n", "alt+down"]
-previous_workspace = ["prefix+shift+p", "alt+up"]
+previous_workspace = ["alt+up"]
+next_workspace = ["alt+down"]
 
-# Smart Splits
+[ui.toast]
+delivery = "system"
+
+[ui]
+accent = "blue"
+agent_panel_sort = "spaces"
+
+# tmux drew single-line dividers between adjacent panes and no outer frame
+pane_gaps = false
+pane_outer_borders = false
+
+# tmux had no scrollbar column beside its panes
+pane_scrollbars = false
+
+# kill-window and kill-session never asked
+confirm_close = false
+
+# automatic-rename gave windows a name without prompting
+prompt_new_tab_name = false
+
+# set -g mouse on
+mouse_capture = true
+
+# status-right had the zoom flag followed by #h
+tab_bar_right = [{ type = "zoom" }, { type = "hostname" }]
+
+# set -g set-titles on / set -g set-titles-string '#h:#W', where tmux's #W was
+# the basename of the pane cwd. This is what Hyprland shows in the group bar,
+# and it resolves on the server so remote sessions name the remote host.
+window_title = "{hostname}: {workspace}"
+
+# Custom smart-splits keybindings
 [[keys.command]]
 key = "ctrl+h"
 type = "plugin_action"
@@ -69,24 +123,3 @@ key = "ctrl+l"
 type = "plugin_action"
 command = "smart-splits.nvim.right"
 description = "navigate right (vim/herdr)"
-
-# Resizing
-[[keys.command]]
-key = "ctrl+alt+shift+left"
-type = "shell"
-command = "herdr pane resize --current --direction left --amount 0.03"
-
-[[keys.command]]
-key = "ctrl+alt+shift+down"
-type = "shell"
-command = "herdr pane resize --current --direction down --amount 0.03"
-
-[[keys.command]]
-key = "ctrl+alt+shift+up"
-type = "shell"
-command = "herdr pane resize --current --direction up --amount 0.03"
-
-[[keys.command]]
-key = "ctrl+alt+shift+right"
-type = "shell"
-command = "herdr pane resize --current --direction right --amount 0.03"
