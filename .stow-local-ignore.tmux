@@ -14,7 +14,7 @@
 .config/nvim-minimax
 
 # platform specific stow files
-.stow-local-ignore.linux
+.stow-local-ignore.xtia
 .stow-local-ignore.osx
 .stow-local-ignore.tmux
 
