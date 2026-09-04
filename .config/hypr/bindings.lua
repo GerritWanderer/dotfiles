@@ -40,6 +40,10 @@ hl.unbind("SUPER + W")
 o.bind("SUPER + Q", "Close Window", hl.dsp.window.close())
 
 -- Window Navigation
+hl.unbind("SUPER + LEFT")
+hl.unbind("SUPER + RIGHT")
+hl.unbind("SUPER + UP")
+hl.unbind("SUPER + DOWN")
 hl.unbind("SUPER + H")
 hl.unbind("SUPER + J")
 hl.unbind("SUPER + K")
@@ -65,3 +69,4 @@ hl.unbind("SUPER + ALT + S")
 o.bind("SUPER + PERIOD", "Open Scratchpad", hl.dsp.workspace.toggle_special("scratchpad"))
 o.bind("SUPER + SHIFT + PERIOD", "Move Window to Scratchpad", hl.dsp.window.move({ workspace = "special:scratchpad", follow = false }))
 
+o.bind("SUPER + SHIFT + K", "Keycade", "omarchy-shell shell summon luneth90.keycade '{}'")
