@@ -1,0 +1,1 @@
+/home/gerrit/.local/state/omarchy/current/theme/neovim.lua
