@@ -39,3 +39,4 @@ Installfile.linux
 Installfile.tmux
 scripts
 .envrc.example
+.local/state/omarchy

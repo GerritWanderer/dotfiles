@@ -26,3 +26,4 @@ Installfile.tmux
 scripts
 .ssh
 .envrc.example
+.local/state/omarchy
