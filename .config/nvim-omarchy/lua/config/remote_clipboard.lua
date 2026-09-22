@@ -2,8 +2,9 @@
 -- every copy is emitted as OSC 52 (inside tmux this becomes a tmux buffer,
 -- rebroadcast to every attached client, local or SSH). Paste prefers the
 -- local Wayland clipboard when one is available, so content copied in other
--- apps remains pasteable; without a display, paste is an OSC 52 query that
--- tmux (or the terminal) answers.
+-- apps remains pasteable; in tmux, paste reads the tmux buffer; otherwise,
+-- paste uses an in-memory session cache to avoid OSC 52 query timeouts (which
+-- terminals do not answer).
 local M = {}
 
 local function proc_lines(pid, file)
@@ -54,16 +55,33 @@ function M.setup()
     and vim.fn.executable("wl-copy") == 1
     and vim.fn.executable("wl-paste") == 1
 
+  local cache = {
+    ["+"] = { {}, "" },
+    ["*"] = { {}, "" },
+  }
+
   local function copy(register)
     local emit = osc52.copy(register)
 
-    return function(lines)
+    return function(lines, regtype)
+      regtype = regtype or ""
+      cache[register] = { lines, regtype }
+      if register == "+" then
+        cache["*"] = { lines, regtype }
+      elseif register == "*" then
+        cache["+"] = { lines, regtype }
+      end
+
       if has_wayland then
         local cmd = { "wl-copy", "--sensitive", "--type", "text/plain" }
         if register == "*" then
           cmd[#cmd + 1] = "--primary"
         end
         vim.fn.system(cmd, lines)
+      end
+
+      if in_tmux and vim.fn.executable("tmux") == 1 then
+        vim.fn.system({ "tmux", "load-buffer", "-" }, lines)
       end
 
       if vim.g.omarchy_remote_clipboard_osc52 ~= false then
@@ -73,18 +91,36 @@ function M.setup()
   end
 
   local function paste(register)
-    if not has_wayland then
-      return osc52.paste(register)
-    end
-
     return function()
-      local cmd = { "wl-paste", "--no-newline" }
-      if register == "*" then
-        cmd[#cmd + 1] = "--primary"
+      if has_wayland then
+        local cmd = { "wl-paste", "--no-newline" }
+        if register == "*" then
+          cmd[#cmd + 1] = "--primary"
+        end
+
+        local lines = vim.fn.systemlist(cmd, "", 1)
+        if vim.v.shell_error == 0 then
+          return { lines, "v" }
+        end
       end
 
-      local lines = vim.fn.systemlist(cmd, "", 1)
-      return vim.v.shell_error == 0 and lines or {}
+      if in_tmux and vim.fn.executable("tmux") == 1 then
+        local lines = vim.fn.systemlist({ "tmux", "save-buffer", "-" }, "", 1)
+        if vim.v.shell_error == 0 and #lines > 0 then
+          return { lines, "v" }
+        end
+      end
+
+      if cache[register] and cache[register][1] and #cache[register][1] > 0 then
+        return cache[register]
+      end
+
+      local reg0 = vim.fn.getreg("0", 1, true)
+      if reg0 and #reg0 > 0 and (reg0[1] ~= "" or #reg0 > 1) then
+        return { reg0, vim.fn.getregtype("0") }
+      end
+
+      return { {}, "" }
     end
   end
 
