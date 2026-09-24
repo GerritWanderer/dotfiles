@@ -60,8 +60,8 @@ switch_tab = ["prefix+1..9", "alt+1..9"]
 # next_tab = ["prefix+n", "alt+right"]
 
 # Like swap-window -t -1/+1 on M-S-Left/Right
-# move_tab_previous = "alt+shift+left"
-# move_tab_next = "alt+shift+right"
+move_tab_previous = "alt+shift+h"
+move_tab_next = "alt+shift+l"
 
 # Sessions -> workspaces
 new_workspace = "prefix+shift+c"
