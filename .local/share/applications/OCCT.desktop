@@ -1,9 +1,0 @@
-[Desktop Entry]
-Name=OCCT
-Comment=Hardware stress testing and monitoring (root)
-Exec=/home/gerrit/.local/bin/occt-launcher
-Icon=cpu-x
-Terminal=false
-Type=Application
-Categories=System;Monitor;
-Keywords=stress;test;cpu;gpu;benchmark;hardware;
