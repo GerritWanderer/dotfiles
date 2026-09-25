@@ -14,3 +14,6 @@
 Documents/notes/.zk/notebook.db
 Documents/notes/.obsidian/workspace.json
 .pi/agent/extensions/web-fetch/node_modules
+.pi/prompts
+.pi/skills
+openspec

@@ -27,3 +27,6 @@ scripts
 .ssh
 .envrc.example
 .local/state/omarchy
+.pi/prompts
+.pi/skills
+openspec
