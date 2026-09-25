@@ -69,4 +69,4 @@ hl.unbind("SUPER + ALT + S")
 o.bind("SUPER + PERIOD", "Open Scratchpad", hl.dsp.workspace.toggle_special("scratchpad"))
 o.bind("SUPER + SHIFT + PERIOD", "Move Window to Scratchpad", hl.dsp.window.move({ workspace = "special:scratchpad", follow = false }))
 
-o.bind("SUPER + SHIFT + K", "Keycade", "omarchy-shell shell summon luneth90.keycade '{}'")
+o.bind("SUPER + SHIFT + K", "Keycade", "omarchy-shell shell summon gerritwanderer.keycade-lazyvim '{}'")
