@@ -1068,6 +1068,58 @@ describe("status.ts", () => {
 describe("subagent discovery", () => {
   const testApi = (subagentsModule as any).__test__;
 
+  it("pins pairing maker to a restricted trusted profile, not target-local config", async () => {
+    await withIsolatedAgentEnv(async ({ projectDir, globalDir, globalAgentsDir }) => {
+      const oldAgent = process.env.PI_SUBAGENT_AGENT;
+      const oldTrusted = process.env.PI_SUBAGENT_TRUSTED_AGENT_DIR;
+      try {
+        process.env.PI_SUBAGENT_AGENT = "tdd-partner";
+        process.env.PI_SUBAGENT_TRUSTED_AGENT_DIR = globalDir;
+        process.env.PI_CODING_AGENT_DIR = join(projectDir, ".pi", "agent");
+        mkdirSync(process.env.PI_CODING_AGENT_DIR, { recursive: true });
+        assert.throws(() => testApi.resolveTrustedMakerProfile("mermaid-maker", projectDir), /missing/);
+
+        writeAgentFile(globalAgentsDir, "mermaid-maker", "name: mermaid-maker\ntools: read,render_mermaid");
+        const trusted = testApi.resolveTrustedMakerProfile("mermaid-maker", projectDir);
+        assert.equal(trusted?.agentDir, globalDir);
+        assert.equal(trusted?.profile.tools, "read,render_mermaid");
+      } finally {
+        if (oldAgent === undefined) delete process.env.PI_SUBAGENT_AGENT;
+        else process.env.PI_SUBAGENT_AGENT = oldAgent;
+        if (oldTrusted === undefined) delete process.env.PI_SUBAGENT_TRUSTED_AGENT_DIR;
+        else process.env.PI_SUBAGENT_TRUSTED_AGENT_DIR = oldTrusted;
+      }
+    });
+  });
+
+  it("refuses project maker shadowing and unrestricted trusted profiles before spawning", async () => {
+    await withIsolatedAgentEnv(async ({ projectDir, projectAgentsDir, globalDir, globalAgentsDir }) => {
+      const oldAgent = process.env.PI_SUBAGENT_AGENT;
+      const oldTrusted = process.env.PI_SUBAGENT_TRUSTED_AGENT_DIR;
+      try {
+        process.env.PI_SUBAGENT_AGENT = "tdd-partner";
+        process.env.PI_SUBAGENT_TRUSTED_AGENT_DIR = globalDir;
+        writeAgentFile(globalAgentsDir, "mermaid-maker", "name: mermaid-maker");
+        assert.throws(() => testApi.resolveTrustedMakerProfile("mermaid-maker", projectDir), /allowlist/);
+
+        writeAgentFile(globalAgentsDir, "mermaid-maker", "name: mermaid-maker\ntools: read");
+        writeAgentFile(projectAgentsDir, "renamed-shadow", "name: mermaid-maker\ntools: read");
+        assert.throws(() => testApi.resolveTrustedMakerProfile("mermaid-maker", projectDir), /shadows/);
+        rmSync(join(projectAgentsDir, "renamed-shadow.md"));
+        writeAgentFile(projectAgentsDir, "mermaid-maker", "name: mermaid-maker");
+        assert.throws(() => testApi.resolveTrustedMakerProfile("mermaid-maker", projectDir), /shadows/);
+        const otherCwd = join(projectDir, "other");
+        mkdirSync(otherCwd);
+        assert.throws(() => testApi.resolveTrustedMakerProfile("mermaid-maker", otherCwd), /shadows/);
+      } finally {
+        if (oldAgent === undefined) delete process.env.PI_SUBAGENT_AGENT;
+        else process.env.PI_SUBAGENT_AGENT = oldAgent;
+        if (oldTrusted === undefined) delete process.env.PI_SUBAGENT_TRUSTED_AGENT_DIR;
+        else process.env.PI_SUBAGENT_TRUSTED_AGENT_DIR = oldTrusted;
+      }
+    });
+  });
+
   it("loads session-mode from frontmatter", async () => {
     await withIsolatedAgentEnv(async ({ projectAgentsDir }) => {
       writeAgentFile(
@@ -1282,6 +1334,40 @@ describe("subagent discovery", () => {
   it("buildSubagentToolAllowlist returns null without an explicit tool restriction", () => {
     assert.equal(testApi.buildSubagentToolAllowlist(undefined), null);
     assert.equal(testApi.buildSubagentToolAllowlist(""), null);
+  });
+
+  it("opts only the pairing profile into trusted extensions and warns when the logger is absent", () => {
+    withTempDir((dir) => {
+      const extensions = join(dir, "extensions");
+      mkdirSync(join(extensions, "visual-tools"), { recursive: true });
+      writeFileSync(join(extensions, "visual-tools", "index.ts"), "export default () => {};");
+      const missing = testApi.resolvePairingExtensions("tdd-partner", dir);
+      assert.match(missing.warning, /logging is unavailable/);
+      assert.equal(missing.paths.length, 1);
+      writeFileSync(join(extensions, "md-log.ts"), "export default () => {};");
+      const pairing = testApi.resolvePairingExtensions("tdd-partner", dir);
+      assert.equal(pairing.warning, "");
+      assert.equal(pairing.paths.length, 2);
+      assert.deepEqual(testApi.resolvePairingExtensions("worker", dir), { paths: [], warning: "" });
+
+      const parts: string[] = [];
+      testApi.applySandboxToParts(parts, {
+        agent: "tdd-partner", toolAllowlist: "read,subagent", model: null, thinking: null,
+        systemPromptMode: null, identity: null, spawnable: ["mermaid-maker"], autoExit: false,
+        cwd: null, agentDir: dir, extraExtensions: pairing.paths,
+      }, { artifactDir: dir, name: "pairing" });
+      assert.ok(parts.includes("--no-extensions"));
+      assert.equal(parts.filter((part: string) => part === "-e").length, 3);
+
+      const workerParts: string[] = [];
+      testApi.applySandboxToParts(workerParts, {
+        agent: "worker", toolAllowlist: "read", model: null, thinking: null,
+        systemPromptMode: null, identity: null, spawnable: null, autoExit: true,
+        cwd: null, agentDir: dir, extraExtensions: [],
+      }, { artifactDir: dir, name: "worker" });
+      assert.ok(workerParts.includes("--no-extensions"));
+      assert.ok(!workerParts.includes("-e"));
+    });
   });
 
   it("applySandboxToParts replays model, identity, and default-deny tool restriction", () => {

@@ -114,6 +114,12 @@ export interface SubagentLoadout {
   cwd: string | null;
   /** PI_CODING_AGENT_DIR the subagent resolved config/extensions from, or null. */
   agentDir: string | null;
+  /** Global maker installation pinned for the pairing session, independent of the target project. */
+  trustedMakerAgentDir?: string | null;
+  /** Exact trusted extensions explicitly enabled in this otherwise restricted child. */
+  extraExtensions?: string[];
+  /** Advisory lock held by every pairing process that writes this session file. */
+  writerLockPath?: string;
 }
 
 /** Path of the loadout sidecar written next to a subagent session file. */
@@ -137,7 +143,17 @@ export function readSubagentLoadout(sessionFile: string): SubagentLoadout | null
     const p = loadoutSidecarPath(sessionFile);
     if (!existsSync(p)) return null;
     const parsed = JSON.parse(readFileSync(p, "utf8"));
-    if (!parsed || typeof parsed !== "object") return null;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const nullableString = (value: unknown) => value === null || typeof value === "string";
+    if (!["agent", "toolAllowlist", "model", "thinking", "identity", "cwd", "agentDir"].every(
+      (key) => nullableString(parsed[key]),
+    )) return null;
+    if (parsed.systemPromptMode !== null && parsed.systemPromptMode !== "append" && parsed.systemPromptMode !== "replace") return null;
+    if (typeof parsed.autoExit !== "boolean") return null;
+    if (parsed.spawnable !== null && (!Array.isArray(parsed.spawnable) || !parsed.spawnable.every((a: unknown) => typeof a === "string"))) return null;
+    if (parsed.extraExtensions !== undefined && (!Array.isArray(parsed.extraExtensions) || !parsed.extraExtensions.every((p: unknown) => typeof p === "string"))) return null;
+    if (parsed.trustedMakerAgentDir !== undefined && !nullableString(parsed.trustedMakerAgentDir)) return null;
+    if (parsed.writerLockPath !== undefined && typeof parsed.writerLockPath !== "string") return null;
     return parsed as SubagentLoadout;
   } catch {
     return null;

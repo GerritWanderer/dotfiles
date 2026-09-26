@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-age
 import { keyHint } from "@mariozechner/pi-coding-agent";
 import { Type, type Static } from "@sinclair/typebox";
 import { Box, Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   readdirSync,
@@ -10,10 +10,12 @@ import {
   writeFileSync,
   existsSync,
   mkdirSync,
+  realpathSync,
   copyFileSync,
   unlinkSync,
 } from "node:fs";
 import { homedir } from "node:os";
+import { execFileSync } from "node:child_process";
 import {
   isMuxAvailable,
   muxSetupHint,
@@ -416,6 +418,62 @@ function loadAgentDefaults(agentName: string): AgentDefaults | null {
   }
 
   return null;
+}
+
+function hasProjectAgentDefinition(agentName: string, targetCwd: string): boolean {
+  for (const dir of [join(targetCwd, ".pi", "agents"), join(targetCwd, ".pi", "agent", "agents")]) {
+    if (!existsSync(dir)) continue;
+    for (const file of readdirSync(dir).filter((entry) => entry.endsWith(".md"))) {
+      const definition = parseAgentDefinition(readFileSync(join(dir, file), "utf8"), file.slice(0, -3));
+      if (definition?.name === agentName) return true;
+    }
+  }
+  return false;
+}
+
+function verifyTrustedMakerProfile(
+  agentName: string,
+  targetCwd: string,
+  agentDir: string | null | undefined,
+): { profile: AgentDefaults; agentDir: string } {
+  if (!agentDir || !isAbsolute(agentDir) || resolve(agentDir) === resolve(targetCwd, ".pi", "agent")) {
+    throw new Error("Cannot delegate diagram: trusted global maker directory is unavailable");
+  }
+  if (hasProjectAgentDefinition(agentName, process.cwd()) || hasProjectAgentDefinition(agentName, targetCwd)) {
+    throw new Error("Cannot delegate diagram: the coding project shadows mermaid-maker");
+  }
+
+  const path = join(agentDir, "agents", `${agentName}.md`);
+  if (!existsSync(path)) throw new Error("Cannot delegate diagram: trusted mermaid-maker profile is missing");
+  const profile = parseAgentDefinition(readFileSync(path, "utf8"), agentName);
+  if (profile?.name !== agentName || !profile.tools?.split(",").some((tool) => tool.trim()) || profile.cli === "claude") {
+    throw new Error("Cannot delegate diagram: trusted mermaid-maker has no restricted Pi tool allowlist");
+  }
+  return { profile, agentDir };
+}
+
+function resolveTrustedMakerProfile(
+  agentName: string,
+  targetCwd: string,
+): { profile: AgentDefaults; agentDir: string } | null {
+  if (process.env.PI_SUBAGENT_AGENT !== "tdd-partner" || agentName !== "mermaid-maker") return null;
+  return verifyTrustedMakerProfile(agentName, targetCwd, process.env.PI_SUBAGENT_TRUSTED_AGENT_DIR);
+}
+
+function resolvePairingExtensions(agentName: string | undefined, agentDir: string): {
+  paths: string[];
+  warning: string;
+} {
+  if (agentName !== "tdd-partner") return { paths: [], warning: "" };
+  const dir = join(agentDir, "extensions");
+  const logger = join(dir, "md-log.ts");
+  const registrar = join(dir, "visual-tools", "index.ts");
+  const paths = [logger, registrar].filter((path) => existsSync(path)).map((path) => realpathSync(path));
+  const warning = [
+    !existsSync(logger) ? "Automatic Obsidian logging is unavailable: the trusted md-log extension is missing. Tell the learner at launch." : "",
+    !existsSync(registrar) ? "Mermaid previews are unavailable: the trusted visual-tools registrar is missing. Use a text fallback." : "",
+  ].filter(Boolean).join("\n\n");
+  return { paths, warning: warning ? `\n\n${warning}\n` : "" };
 }
 
 function formatElapsed(seconds: number): string {
@@ -869,6 +927,10 @@ function applySandboxToParts(
       const extPath = getToolExtensionPath(tool);
       if (extPath && existsSync(extPath)) extPaths.add(extPath);
     }
+    for (const extPath of loadout.extraExtensions ?? []) {
+      if (!existsSync(extPath)) throw new Error(`Trusted subagent extension is missing: ${extPath}`);
+      extPaths.add(extPath);
+    }
     for (const extPath of extPaths) {
       parts.push("-e", shellEscape(extPath));
     }
@@ -1111,6 +1173,48 @@ function startStatusRefresh(pi: ExtensionAPI) {
   (globalThis as any)[STATUS_INTERVAL_KEY] = statusInterval;
 }
 
+function validatePairingReopen(sessionPath: string, loadout: SubagentLoadout | null): string | null {
+  if (!loadout || loadout.agent !== "tdd-partner" || loadout.autoExit !== false) {
+    return "Only saved, non-auto-exiting pairing sessions can reopen interactively.";
+  }
+  if (!loadout.cwd || !isAbsolute(loadout.cwd) || !existsSync(loadout.cwd) ||
+      !loadout.toolAllowlist || !loadout.model || !loadout.identity ||
+      loadout.spawnable?.join(",") !== "mermaid-maker" ||
+      loadout.trustedMakerAgentDir !== getAgentConfigDir() ||
+      loadout.agentDir !== loadout.trustedMakerAgentDir ||
+      loadout.writerLockPath !== `${sessionPath}.writer.lock` ||
+      !existsSync(loadout.writerLockPath)) {
+    return "Pairing session sandbox or writer ownership is missing or uncertain; refusing to reopen.";
+  }
+  const allowedTools = new Set(["read", "grep", "find", "ls", "write", "edit", "bash", ...SPAWNING_TOOLS, ...SUBAGENT_CONTROL_TOOLS]);
+  const tools = loadout.toolAllowlist.split(",").map((tool) => tool.trim());
+  if (!tools.includes("subagent") || !tools.includes("read") || tools.some((tool) => !allowedTools.has(tool))) {
+    return "Pairing session tool allowlist is missing or invalid.";
+  }
+  const allowedExtensions = new Set(["md-log.ts", join("visual-tools", "index.ts")].map(
+    (path) => join(getAgentConfigDir(), "extensions", path),
+  ).filter((path) => existsSync(path)).map((path) => realpathSync(path)));
+  if (!Array.isArray(loadout.extraExtensions) || loadout.extraExtensions.some(
+    (path) => !isAbsolute(path) || !existsSync(path) || !allowedExtensions.has(realpathSync(path)),
+  )) return "Pairing session trusted extension snapshot is missing or invalid.";
+  try {
+    const lines = readFileSync(sessionPath, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+    if (lines[0]?.type !== "session" || typeof lines[0]?.id !== "string" ||
+        lines[0]?.cwd !== loadout.cwd || lines.slice(1).some((entry) => !entry || typeof entry !== "object" || typeof entry.type !== "string")) {
+      return "Pairing session file is corrupt or its working directory changed.";
+    }
+    verifyTrustedMakerProfile("mermaid-maker", loadout.cwd, loadout.trustedMakerAgentDir);
+  } catch (error) {
+    return `Cannot reopen pairing: session or trusted maker is unavailable (${String(error)}).`;
+  }
+  try {
+    execFileSync("flock", ["-n", loadout.writerLockPath, "-c", "true"], { stdio: "ignore" });
+  } catch {
+    return "Pairing session has a live writer or writer ownership is uncertain. Switch to the existing tmux pane; refusing a second writer.";
+  }
+  return null;
+}
+
 // Resuming a finished session is always autonomous: the relaunched agent runs
 // its follow-up task to completion and the harness delivers the result as a
 // steer message (fire-and-forget). An interactive resume would park the pane
@@ -1128,6 +1232,9 @@ export const __test__ = {
   resolveEffectiveSessionMode,
   resolveLaunchBehavior,
   resolveEffectiveInteractive,
+  resolveTrustedMakerProfile,
+  resolvePairingExtensions,
+  validatePairingReopen,
   buildSubagentToolAllowlist,
   applySandboxToParts,
   buildPiPromptArgs,
@@ -1173,7 +1280,13 @@ async function launchSubagent(
   const startTime = Date.now();
   const id = Math.random().toString(16).slice(2, 10);
 
-  const agentDefs = params.agent ? loadAgentDefaults(params.agent) : null;
+  const trustedMaker = params.agent ? resolveTrustedMakerProfile(params.agent, params.cwd ?? process.cwd()) : null;
+  const agentDefs = trustedMaker?.profile ?? (params.agent ? loadAgentDefaults(params.agent) : null);
+  const isPairing = params.agent === "tdd-partner";
+  if (isPairing && hasProjectAgentDefinition("tdd-partner", params.cwd ?? process.cwd())) {
+    throw new Error("Cannot start pairing: the coding project shadows tdd-partner");
+  }
+  const { paths: trustedExtensions, warning: pairingWarning } = resolvePairingExtensions(params.agent, getAgentConfigDir());
   const effectiveModel = params.model ?? agentDefs?.model;
   const effectiveTools = agentDefs?.tools;
   const effectiveSkills = agentDefs?.skills;
@@ -1187,7 +1300,8 @@ async function launchSubagent(
 
   const { effectiveCwd, localAgentDir, effectiveAgentDir } = resolveSubagentPaths(params, agentDefs);
   const targetCwdForSession = effectiveCwd ?? ctx.cwd;
-  const sessionDir = getDefaultSessionDirFor(targetCwdForSession, effectiveAgentDir);
+  const childAgentDir = isPairing ? getAgentConfigDir() : trustedMaker?.agentDir ?? effectiveAgentDir;
+  const sessionDir = getDefaultSessionDirFor(targetCwdForSession, childAgentDir);
 
   // Generate a deterministic session file path for this subagent.
   // This eliminates race conditions when multiple agents launch simultaneously —
@@ -1242,7 +1356,7 @@ async function launchSubagent(
   const roleBlock = identity && !identityInSystemPrompt ? `\n\n${identity}` : "";
   const fullTask = inheritsConversationContext
     ? params.task
-    : `${roleBlock}\n\n${modeHint}\n\n${params.task}\n\n${summaryInstruction}`;
+    : `${roleBlock}\n\n${modeHint}\n\n${params.task}${pairingWarning}\n\n${summaryInstruction}`;
   // ── Claude Code CLI path ──
   if (agentDefs?.cli === "claude") {
     const sentinelFile = `/tmp/pi-claude-${id}-done`;
@@ -1324,10 +1438,13 @@ async function launchSubagent(
   // Resolve the config dir the child sees: a target-local .pi/agent/ wins,
   // else the propagated global dir. Captured once so the launch env and the
   // resume snapshot agree.
-  const resolvedAgentDir =
-    localAgentDir && existsSync(localAgentDir)
-      ? localAgentDir
-      : process.env.PI_CODING_AGENT_DIR ?? null;
+  const resolvedAgentDir = isPairing
+    ? childAgentDir
+    : trustedMaker?.agentDir ?? (
+      localAgentDir && existsSync(localAgentDir)
+        ? localAgentDir
+        : process.env.PI_CODING_AGENT_DIR ?? null
+    );
 
   // Default-deny model: when an agent restricts its tools (or is granted the
   // spawning toolset), we disable global extension discovery and re-enable only
@@ -1347,8 +1464,11 @@ async function launchSubagent(
     identity: identityInSystemPrompt ? identity : null,
     spawnable: agentDefs?.subagentAgents ?? null,
     autoExit: agentDefs?.autoExit ?? false,
-    cwd: effectiveCwd ?? null,
+    cwd: isPairing ? targetCwdForSession : effectiveCwd ?? null,
     agentDir: resolvedAgentDir,
+    trustedMakerAgentDir: isPairing ? getAgentConfigDir() : null,
+    extraExtensions: isPairing ? trustedExtensions : [],
+    writerLockPath: isPairing ? `${subagentSessionFile}.writer.lock` : undefined,
   };
   writeSubagentLoadout(subagentSessionFile, loadout);
 
@@ -1361,6 +1481,9 @@ async function launchSubagent(
 
   if (resolvedAgentDir) {
     envParts.push(`PI_CODING_AGENT_DIR=${shellEscape(resolvedAgentDir)}`);
+  }
+  if (loadout.trustedMakerAgentDir) {
+    envParts.push(`PI_SUBAGENT_TRUSTED_AGENT_DIR=${shellEscape(loadout.trustedMakerAgentDir)}`);
   }
 
   if (grantSpawning && agentDefs?.subagentAgents) {
@@ -1413,7 +1536,10 @@ async function launchSubagent(
   // This was already computed above so session placement, PI_CODING_AGENT_DIR, and cd agree.
   const cdPrefix = effectiveCwd ? `cd ${shellEscape(effectiveCwd)} && ` : "";
 
-  const piCommand = cdPrefix + envPrefix + parts.join(" ");
+  const launchParts = loadout.writerLockPath
+    ? ["flock", "-n", shellEscape(loadout.writerLockPath), ...parts]
+    : parts;
+  const piCommand = cdPrefix + envPrefix + launchParts.join(" ");
   const command = `${piCommand}; echo '__SUBAGENT_DONE_'$?'__'`;
   const launchScriptName = `${(params.name || "subagent")
     .toLowerCase()
@@ -2142,6 +2268,11 @@ export default function subagentsExtension(pi: ExtensionAPI) {
           return { content: [{ type: "text" as const, text: err }], details: { error: err } };
         }
 
+        if (loadout.agent === "tdd-partner") {
+          const issue = validatePairingReopen(sessionPath, loadout);
+          if (issue) return { content: [{ type: "text" as const, text: issue }], details: { error: issue } };
+        }
+
         const resumedSessionId = entry.sessionId ?? getSessionId(sessionPath) ?? requestedName;
 
         // Record entry count before resuming so we can extract new messages.
@@ -2193,6 +2324,9 @@ export default function subagentsExtension(pi: ExtensionAPI) {
         if (resumeAgentDir) {
           resumeEnvParts.push(`PI_CODING_AGENT_DIR=${shellEscape(resumeAgentDir)}`);
         }
+        if (loadout.trustedMakerAgentDir) {
+          resumeEnvParts.push(`PI_SUBAGENT_TRUSTED_AGENT_DIR=${shellEscape(loadout.trustedMakerAgentDir)}`);
+        }
         if (loadout.spawnable && loadout.spawnable.length > 0) {
           resumeEnvParts.push(`PI_SUBAGENT_ALLOWED=${shellEscape(loadout.spawnable.join(","))}`);
         }
@@ -2212,7 +2346,10 @@ export default function subagentsExtension(pi: ExtensionAPI) {
         // operate where they did before.
         const resumeCdPrefix = loadout.cwd ? `cd ${shellEscape(loadout.cwd)} && ` : "";
 
-        const command = `${resumeCdPrefix}${resumeEnvPrefix}${parts.join(" ")}; echo '__SUBAGENT_DONE_'$?'__'`;
+        const resumeParts = loadout.writerLockPath
+          ? ["flock", "-n", shellEscape(loadout.writerLockPath), ...parts]
+          : parts;
+        const command = `${resumeCdPrefix}${resumeEnvPrefix}${resumeParts.join(" ")}; echo '__SUBAGENT_DONE_'$?'__'`;
         const launchScriptFile = join(
           artifactDir,
           "subagent-scripts",
@@ -2318,6 +2455,96 @@ export default function subagentsExtension(pi: ExtensionAPI) {
         };
       },
     });
+
+  pi.registerCommand("subagent-reopen", {
+    description: "Reopen a closed pairing session interactively: /subagent-reopen <name>",
+    handler: async (args, ctx) => {
+      const name = args.trim();
+      if (!name || !isMuxAvailable()) {
+        ctx.ui.notify(name ? muxSetupHint() : "Usage: /subagent-reopen <name>", "warning");
+        return;
+      }
+      const artifactDir = getArtifactDir(ctx.sessionManager.getSessionDir(), ctx.sessionManager.getSessionId());
+      const entry = resolveNameInRegistry(artifactDir, name);
+      if (!entry?.sessionFile || !existsSync(entry.sessionFile)) {
+        ctx.ui.notify(`No saved pairing session named "${name}" is available in this parent session.`, "error");
+        return;
+      }
+      const sessionFile = entry.sessionFile;
+      const active = Array.from(runningSubagents.values()).find((agent) => resolve(agent.sessionFile) === resolve(sessionFile));
+      if (active) {
+        ctx.ui.notify(`Pairing session is already open in tmux pane ${active.surface}; switch to it.`, "warning");
+        return;
+      }
+      const loadout = readSubagentLoadout(sessionFile);
+      const issue = validatePairingReopen(sessionFile, loadout);
+      if (issue) {
+        ctx.ui.notify(issue, "error");
+        return;
+      }
+      const savedId = getSessionId(sessionFile);
+      if (!savedId || (entry.sessionId && entry.sessionId !== savedId)) {
+        ctx.ui.notify("Pairing session registry and saved session do not agree; refusing to reopen.", "error");
+        return;
+      }
+      const original = loadout!;
+      const id = Math.random().toString(16).slice(2, 10);
+      const activityFile = getSubagentActivityFile(artifactDir, id);
+      mkdirSync(dirname(activityFile), { recursive: true });
+      const parts = ["pi", "--session", shellEscape(sessionFile), "-e", shellEscape(join(SUBAGENTS_DIR, "subagent-done.ts"))];
+      try {
+        applySandboxToParts(parts, original, { artifactDir, name });
+      } catch (error) {
+        ctx.ui.notify(`Cannot restore pairing sandbox: ${String(error)}`, "error");
+        return;
+      }
+      const envParts = [
+        ...(original.agentDir ? [`PI_CODING_AGENT_DIR=${shellEscape(original.agentDir)}`] : []),
+        `PI_SUBAGENT_TRUSTED_AGENT_DIR=${shellEscape(original.trustedMakerAgentDir!)}`,
+        `PI_SUBAGENT_ALLOWED=${shellEscape(original.spawnable!.join(","))}`,
+        "PI_SUBAGENT_AGENT=tdd-partner",
+        `PI_SUBAGENT_NAME=${shellEscape(name)}`,
+        `PI_SUBAGENT_SESSION=${shellEscape(sessionFile)}`,
+        `PI_SUBAGENT_ID=${shellEscape(id)}`,
+        `PI_SUBAGENT_ACTIVITY_FILE=${shellEscape(activityFile)}`,
+      ];
+      const command = `cd ${shellEscape(original.cwd!)} && env -u PI_SUBAGENT_AUTO_EXIT ${envParts.join(" ")} flock -n ${shellEscape(original.writerLockPath!)} ${parts.join(" ")}; echo '__SUBAGENT_DONE_'$?'__'`;
+      let surface: string | undefined;
+      try {
+        surface = createSurface(name);
+        await new Promise<void>((resolve) => setTimeout(resolve, getShellReadyDelayMs()));
+        sendLongCommand(surface, command, {
+          scriptPath: join(artifactDir, "subagent-scripts", `${id}-interactive-reopen.sh`),
+          scriptPreamble: `# Interactive pairing reopen: ${name}\n# Session: ${sessionFile}`,
+        });
+      } catch (error) {
+        if (surface) closeSurface(surface);
+        ctx.ui.notify(`Could not reopen pairing: ${String(error)}`, "error");
+        return;
+      }
+      const running: RunningSubagent = {
+        id, name, task: "Interactive pairing reopen", agent: "tdd-partner", surface: surface!,
+        startTime: Date.now(), sessionFile,
+        activityFile, interactive: true,
+        statusState: createStatusState({ source: "pi", startTimeMs: Date.now() }),
+      };
+      runningSubagents.set(id, running);
+      startWidgetRefresh();
+      startStatusRefresh(pi);
+      const watcherAbort = new AbortController();
+      running.abortController = watcherAbort;
+      watchSubagent(running, watcherAbort.signal).then((result) => {
+        updateWidget();
+        pi.sendMessage({
+          customType: "subagent_result",
+          content: resolveResultPresentation(result, name), display: true,
+          details: { name, agent: "tdd-partner", exitCode: result.exitCode, elapsed: result.elapsed,
+            sessionFile, sessionId: savedId, ...(result.errorMessage ? { errorMessage: result.errorMessage } : {}) },
+        }, { triggerTurn: true, deliverAs: "steer" });
+      });
+      ctx.ui.notify(`Reopened ${name} interactively in tmux pane ${surface}.`, "success");
+    },
+  });
 
   // /subagent command — spawn a subagent by name
   pi.registerCommand("subagent", {

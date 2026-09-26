@@ -46,15 +46,23 @@ const AUTO_LOG = true;
 const AUTO_LOG_DIR = path.join(os.homedir(), "Documents/notes/01-Inbox");
 const NAMING_TIMEOUT_MS = 20_000;
 const MAX_SLUG_LENGTH = 60;
+const IS_PAIRING = process.env.PI_SUBAGENT_AGENT === "tdd-partner";
 
 export default function mdLog(pi: ExtensionAPI) {
 	let logFile: string | null = null;
 	let autoLogEligible = false; // fresh session, no explicit link/unlink yet
 	let shutDown = false; // session runtime torn down; cancel background work
+	let incomplete = false;
+	let retryTimer: ReturnType<typeof setInterval> | undefined;
+	let skipInitialPairingUser = false;
 
 	// --- State restoration on session restart ---
 
 	pi.on("session_start", async (_event, ctx) => {
+		if (retryTimer) clearInterval(retryTimer);
+		retryTimer = undefined;
+		logFile = null;
+		incomplete = false;
 		let lastLinkData: { file: string | null } | undefined;
 		let hasMessages = false;
 		for (const entry of ctx.sessionManager.getEntries()) {
@@ -74,12 +82,16 @@ export default function mdLog(pi: ExtensionAPI) {
 		// Auto-log only for genuinely new interactive sessions: no messages yet
 		// and no md-log link/unlink decision recorded.
 		autoLogEligible = AUTO_LOG && ctx.hasUI && !hasMessages && lastLinkData === undefined;
+		skipInitialPairingUser = IS_PAIRING && !hasMessages;
 		shutDown = false;
+		if (IS_PAIRING && logFile) await withLock(() => reconcilePairing(ctx));
 	});
 
 	pi.on("session_shutdown", async () => {
 		// Invalidate any pending background naming/rename for this runtime.
 		shutDown = true;
+		if (retryTimer) clearInterval(retryTimer);
+		retryTimer = undefined;
 	});
 
 	// --- Auto-log: name the file from the topic of the first prompt ---
@@ -144,9 +156,12 @@ export default function mdLog(pi: ExtensionAPI) {
 		autoLogEligible = false;
 		const date = new Date().toISOString().slice(0, 10);
 		const uid = Math.random().toString(36).slice(2, 8);
+		const topic = IS_PAIRING
+			? `pairing ${path.basename(ctx.cwd)} ${process.env.PI_SUBAGENT_NAME ?? "coding"}`
+			: firstPrompt;
 		let created: string;
 		try {
-			created = createExclusive(`${date}-session-${uid}`, "");
+			created = createExclusive(IS_PAIRING ? `${date}-${sanitizeSlug(topic)}` : `${date}-session-${uid}`, "");
 		} catch (err: any) {
 			ctx.ui.notify(`md-log: could not create log file: ${err?.message ?? err}`, "error");
 			return;
@@ -155,7 +170,7 @@ export default function mdLog(pi: ExtensionAPI) {
 		pi.appendEntry("md-log", { file: created });
 		setLogStatus(ctx, created);
 		ctx.ui.notify(`md-log: ${path.basename(created)}`, "info");
-		void renameToTopic(created, firstPrompt, ctx);
+		if (!IS_PAIRING) void renameToTopic(created, firstPrompt, ctx);
 	}
 
 	async function renameToTopic(fromFile: string, firstPrompt: string, ctx: any): Promise<void> {
@@ -234,17 +249,82 @@ export default function mdLog(pi: ExtensionAPI) {
 		return prev.then(fn).finally(() => release!());
 	}
 
-	function appendToFile(text: string): void {
+	function markIncomplete(ctx: any, error: unknown): void {
+		if (!logFile) return;
+		if (!incomplete) ctx.ui.notify(`md-log: note incomplete: ${String(error)}`, "error");
+		incomplete = true;
+		ctx.ui.setStatus("md-log", ctx.ui.theme.fg("error", `INCOMPLETE ${path.basename(logFile)}`));
+		if (IS_PAIRING && !retryTimer) {
+			retryTimer = setInterval(() => {
+				if (!logFile || shutDown) return;
+				void withLock(() => reconcilePairing(ctx));
+			}, 3000);
+		}
+	}
+
+	function clearIncomplete(ctx: any): void {
+		if (!incomplete || !logFile) return;
+		incomplete = false;
+		if (retryTimer) clearInterval(retryTimer);
+		retryTimer = undefined;
+		setLogStatus(ctx, logFile);
+		ctx.ui.notify(`md-log: note caught up: ${path.basename(logFile)}`, "info");
+	}
+
+	function appendToFile(text: string, ctx: any): void {
 		if (!logFile) return;
 		try {
-			let current = "";
-			if (fs.existsSync(logFile)) {
-				current = fs.readFileSync(logFile, "utf-8");
-			}
+			const current = fs.existsSync(logFile) ? fs.readFileSync(logFile, "utf-8") : "";
 			const prefix = current.trim().length > 0 ? "\n\n" : "";
 			fs.writeFileSync(logFile, current + prefix + text + "\n", "utf-8");
-		} catch {
-			// File may have been deleted externally; ignore.
+		} catch (error) {
+			markIncomplete(ctx, error);
+		}
+	}
+
+	function reconcilePairing(ctx: any): void {
+		if (!IS_PAIRING || !logFile || shutDown) return;
+		const file = logFile;
+		let temp: string | undefined;
+		try {
+			const target = fs.realpathSync(file);
+			fs.accessSync(target, fs.constants.W_OK);
+			const mode = fs.statSync(target).mode & 0o777;
+			const current = fs.readFileSync(target, "utf-8");
+			const mirrored = new Set([...current.matchAll(/<!-- pi-md-log:([a-f0-9]+) -->/g)].map((m) => m[1]));
+			const pending: Array<{ id: string; block: string }> = [];
+			let firstUser = true;
+			for (const entry of ctx.sessionManager.getBranch()) {
+				if (entry.type !== "message" || !entry.id) continue;
+				const msg = entry.message;
+				if (msg?.role === "user") {
+					if (firstUser) { firstUser = false; continue; } // Parent's launch task, not the learner's message.
+					const text = typeof msg.content === "string" ? msg.content :
+						(msg.content ?? []).filter((c: any) => c.type === "text").map((c: any) => c.text).join("\n");
+					const trimmed = stripSkillBlocks(text.trim());
+					if (trimmed && !mirrored.has(entry.id)) pending.push({ id: entry.id, block: userBlock(trimmed) });
+				} else if (msg?.role === "assistant") {
+					const text = (msg.content ?? []).filter((c: any) => c.type === "text")
+						.map((c: any) => c.text.trim()).filter(Boolean).join("\n\n");
+					if (text && !mirrored.has(entry.id)) pending.push({ id: entry.id, block: assistantBlock(text) });
+				}
+			}
+			if (pending.length > 0) {
+				const prefix = current.trim() ? "\n\n" : "";
+				const content = pending.map(({ id, block }) => `${block}\n\n<!-- pi-md-log:${id} -->`).join("\n\n");
+				temp = `${target}.tmp-${process.pid}-${Math.random().toString(16).slice(2)}`;
+				fs.writeFileSync(temp, current + prefix + content + "\n", { encoding: "utf-8", flag: "wx", mode });
+				fs.chmodSync(temp, mode);
+				if (logFile !== file) { fs.rmSync(temp); return; }
+				if (fs.realpathSync(file) !== target) throw new Error("md-log link target changed while writing");
+				fs.renameSync(temp, target);
+				temp = undefined;
+				pi.appendEntry("md-log-checkpoint", { file, lastEntryId: pending[pending.length - 1].id });
+			}
+			clearIncomplete(ctx);
+		} catch (error) {
+			if (temp) { try { fs.rmSync(temp); } catch {} }
+			markIncomplete(ctx, error);
 		}
 	}
 
@@ -385,7 +465,12 @@ export default function mdLog(pi: ExtensionAPI) {
 				startAutoLog(trimmed, _ctx);
 				if (!logFile) return; // creation failed (already notified)
 			}
-			await withLock(() => appendToFile(userBlock(trimmed)));
+			if (IS_PAIRING) {
+				if (skipInitialPairingUser) { skipInitialPairingUser = false; return; }
+				await withLock(() => reconcilePairing(_ctx));
+				return;
+			}
+			await withLock(() => appendToFile(userBlock(trimmed), _ctx));
 			return;
 		}
 
@@ -396,7 +481,8 @@ export default function mdLog(pi: ExtensionAPI) {
 				.map((c: any) => (c.text as string).trim())
 				.filter((t: string) => t.length > 0);
 			if (textParts.length === 0) return;
-			await withLock(() => appendToFile(assistantBlock(textParts.join("\n\n"))));
+			if (IS_PAIRING) await withLock(() => reconcilePairing(_ctx));
+			else await withLock(() => appendToFile(assistantBlock(textParts.join("\n\n")), _ctx));
 			return;
 		}
 		// toolResult messages are handled by the tool_result event (for QA tools).
@@ -414,7 +500,7 @@ export default function mdLog(pi: ExtensionAPI) {
 		const context: string | undefined = input.details?.trim() || undefined;
 		const options: Array<{ label: string }> = Array.isArray(input.options) ? input.options : [];
 		const block = questionCallout("Question", question, context, options);
-		await withLock(() => appendToFile(block));
+		await withLock(() => appendToFile(block, _ctx));
 	});
 
 	// quiz DOES shuffle its options inside execute(), so the tool_call args are
@@ -438,7 +524,11 @@ export default function mdLog(pi: ExtensionAPI) {
 		const context: string | undefined = input.details?.trim() || undefined;
 		const options = shuffled.map((o) => ({ label: o.label }));
 		const block = questionCallout("Quiz", question, context, options);
-		await withLock(() => appendToFile(block));
+		await withLock(() => appendToFile(block, _ctx));
+	});
+
+	pi.on("agent_end", async (_event, ctx) => {
+		if (IS_PAIRING && logFile) await withLock(() => reconcilePairing(ctx));
 	});
 
 	pi.on("tool_result", async (event, _ctx) => {
@@ -449,7 +539,7 @@ export default function mdLog(pi: ExtensionAPI) {
 		const block = toolName === "quiz"
 			? answerCalloutQuiz(details)
 			: answerCalloutAsk(details);
-		await withLock(() => appendToFile(block));
+		await withLock(() => appendToFile(block, _ctx));
 	});
 
 	// --- Commands ---
@@ -486,14 +576,16 @@ export default function mdLog(pi: ExtensionAPI) {
 			pi.appendEntry("md-log", { file: resolved });
 
 			// Backfill the active branch.
-			const written = backfill(ctx);
+			const written = IS_PAIRING ? await withLock(() => { reconcilePairing(ctx); return 0; }) : backfill(ctx);
 
 			const theme = ctx.ui.theme;
-			ctx.ui.setStatus(
-				"md-log",
-				theme.fg("accent", "🗒 ") + theme.fg("dim", path.basename(resolved)),
-			);
-			ctx.ui.notify(`Linked: ${resolved} (${written} entries backfilled)`, "success");
+			if (!incomplete) {
+				ctx.ui.setStatus(
+					"md-log",
+					theme.fg("accent", "🗒 ") + theme.fg("dim", path.basename(resolved)),
+				);
+				ctx.ui.notify(`Linked: ${resolved} (${written} entries backfilled)`, "success");
+			}
 		},
 	});
 
@@ -513,6 +605,9 @@ export default function mdLog(pi: ExtensionAPI) {
 			const name = path.basename(logFile);
 			logFile = null;
 			autoLogEligible = false;
+			incomplete = false;
+			if (retryTimer) clearInterval(retryTimer);
+			retryTimer = undefined;
 			pi.appendEntry("md-log", { file: null });
 			ctx.ui.setStatus("md-log", undefined);
 			ctx.ui.notify(`Unlinked: ${name}`, "info");
@@ -618,8 +713,9 @@ export default function mdLog(pi: ExtensionAPI) {
 		if (blocks.length > 0) {
 			try {
 				fs.writeFileSync(logFile, blocks.join("\n\n") + "\n", "utf-8");
-			} catch {
-				// ignore
+				clearIncomplete(ctx);
+			} catch (error) {
+				markIncomplete(ctx, error);
 			}
 		}
 		return count;
