@@ -2,7 +2,7 @@
 name: mermaid-maker
 description: Authors and inspects ONE Mermaid diagram; returns a temporary preview with source or publishes a PNG on request. For structural/relational visuals — dependency graphs, flows, sequences, state machines, trees, ER, timelines.
 tools: write_mermaid, edit_mermaid, render_mermaid, read
-model: opencode/gpt-6-sol
+model: github-copilot/gemini-3.8-flash
 thinking: medium
 system-prompt: append
 auto-exit: true

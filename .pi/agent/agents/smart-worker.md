@@ -3,7 +3,7 @@ name: smart-worker
 description: Higher-tier worker — complex algorithmic, concurrency, security, and architectural tasks
 tools: read, write, edit, bash, web_search, web_fetch
 subagent_agents: scout, researcher
-model: opencode/gpt-6-sol
+model: github-copilot/gpt-6-sol
 thinking: high
 system-prompt: append
 auto-exit: true

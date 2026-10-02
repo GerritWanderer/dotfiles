@@ -1,8 +1,8 @@
 ---
 name: tdd-partner
 description: Interactive OpenSpec-grounded TDD partner: writes tests while the learner writes implementation
-model: opencode/gpt-6-sol
-thinking: high
+model: github-copilot/gemini-3.8-flash
+thinking: medium
 tools: read, grep, find, ls, write, edit, bash
 subagent_agents: mermaid-maker
 session-mode: lineage-only

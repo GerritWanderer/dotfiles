@@ -3,7 +3,7 @@ name: challenger
 description: Adversarial reviewer — red-teams OpenSpec change artifacts (proposal, design, specs, tasks) before implementation
 tools: read, grep, find, ls, write, bash
 subagent_agents: scout, researcher
-model: opencode/gpt-6-sol
+model: github-copilot/gpt-6-sol
 thinking: xhigh
 system-prompt: append
 auto-exit: true

@@ -3,7 +3,7 @@ name: worker
 description: General-purpose worker — bounded, well-specified programming tasks
 tools: read, write, edit, bash, web_search, web_fetch
 subagent_agents: scout, researcher
-model: opencode/gemini-3.8-flash
+model: github-copilot/gemini-3.8-flash
 thinking: high
 system-prompt: append
 auto-exit: true

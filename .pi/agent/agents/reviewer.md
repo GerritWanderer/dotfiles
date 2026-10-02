@@ -1,7 +1,7 @@
 ---
 name: reviewer
 description: Read-only branch code reviewer — finds bugs, regressions, architectural mismatches, and API issues in Git diffs
-model: opencode/gpt-6-sol
+model: github-copilot/gpt-6-sol
 thinking: xhigh
 tools: read, grep, find, ls, bash
 system-prompt: append
