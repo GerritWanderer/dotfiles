@@ -1,0 +1,18 @@
+[tools]
+claude = "latest"
+cloud-sql-proxy = "latest"
+codex = "latest"
+gcloud = "latest"
+gh = "latest"
+herdr = "latest"
+node = "24.13.1"
+"npm:@fission-ai/openspec" = "latest"
+"npm:@opencode/cli" = "latest"
+opencode = "latest"
+pi = "latest"
+pnpm = "latest"
+superfile = "latest"
+uv = "latest"
+
+[settings.upgrade]
+auto_prune = false
