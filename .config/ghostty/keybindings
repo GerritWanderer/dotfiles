@@ -36,25 +36,25 @@ keybind = super+shift+w=close_window
 keybind = super+q=quit
 
 # window pane navigation and resizing with hjkl
-keybind = performable:ctrl+h=goto_split:left
-keybind = performable:ctrl+j=goto_split:down
-keybind = performable:ctrl+k=goto_split:up
-keybind = performable:ctrl+l=goto_split:right
-
-keybind = super+right_bracket=goto_split:next
-keybind = super+left_bracket=goto_split:previous
-
-keybind = ctrl+shift+j=resize_split:down,50
-keybind = ctrl+shift+h=resize_split:left,50
-keybind = ctrl+shift+k=resize_split:up,50
-keybind = ctrl+shift+l=resize_split:right,50
+# keybind = performable:ctrl+h=goto_split:left
+# keybind = performable:ctrl+j=goto_split:down
+# keybind = performable:ctrl+k=goto_split:up
+# keybind = performable:ctrl+l=goto_split:right
+#
+# keybind = super+right_bracket=goto_split:next
+# keybind = super+left_bracket=goto_split:previous
+#
+# keybind = ctrl+shift+j=resize_split:down,50
+# keybind = ctrl+shift+h=resize_split:left,50
+# keybind = ctrl+shift+k=resize_split:up,50
+# keybind = ctrl+shift+l=resize_split:right,50
 
 # Enter associated keybindings for Screen / Split management
-keybind = alt+enter=toggle_fullscreen
-keybind = ctrl+enter=new_split:right
-keybind = ctrl+shift+enter=new_split:down
-keybind = super+enter=toggle_split_zoom
-keybind = shift+enter=text:\r
+# keybind = alt+enter=toggle_fullscreen
+# keybind = ctrl+enter=new_split:right
+# keybind = ctrl+shift+enter=new_split:down
+# keybind = super+enter=toggle_split_zoom
+# keybind = shift+enter=text:\r
 
 keybind = "super+f=write_scrollback_file:open"
 keybind = shift+insert=paste_from_clipboard
