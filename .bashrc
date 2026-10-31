@@ -14,6 +14,7 @@ source "$OMARCHY_PATH/default/bash/rc"
 # alias p='python'
 #
 # cd on quit for superfile
+eval "$(direnv hook bash)"
 spf() {
     os=$(uname -s)
 
