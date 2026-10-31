@@ -26,57 +26,85 @@ interface BuiltSearchQuery {
 	site?: string;
 }
 
-async function googleSearch(
+interface ExaApiResult {
+	id: string;
+	title: string;
+	url: string;
+	text?: string;
+	highlights?: string[];
+}
+
+interface ExaSearchResponse {
+	results?: ExaApiResult[];
+}
+
+async function exaSearch(
 	query: string,
 	count: number,
 	apiKey: string,
-	cseId: string,
+	site?: string,
 	signal?: AbortSignal,
 ): Promise<SearchResult[]> {
-	const num = Math.min(count, 10);
-	const url = new URL("https://www.googleapis.com/customsearch/v1");
-	url.searchParams.set("key", apiKey);
-	url.searchParams.set("cx", cseId);
-	url.searchParams.set("q", query);
-	url.searchParams.set("num", String(num));
-
-	const resp = await fetch(url.toString(), { signal });
-	if (!resp.ok) {
-		const body = await resp.text();
-		throw new Error(`Google API ${resp.status}: ${body.slice(0, 200)}`);
-	}
-
-	const data = (await resp.json()) as {
-		items?: Array<{
-			title: string;
-			link: string;
-			snippet?: string;
-		}>;
+	const numResults = Math.min(Math.max(count, 1), 20);
+	const requestBody: Record<string, unknown> = {
+		query,
+		type: "auto",
+		numResults,
+		contents: {
+			highlights: { numSentences: 3 },
+			text: { maxCharacters: 500 },
+		},
 	};
 
-	if (!data.items || data.items.length === 0) return [];
+	if (site) {
+		requestBody.includeDomains = [site];
+	}
 
-	return data.items.map((item) => ({
-		title: item.title,
-		url: item.link,
-		snippet: item.snippet?.replace(/\n/g, " ") ?? "",
-	}));
+	const resp = await fetch("https://api.exa.ai/search", {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"x-api-key": apiKey,
+		},
+		body: JSON.stringify(requestBody),
+		signal,
+	});
+
+	if (!resp.ok) {
+		const body = await resp.text();
+		throw new Error(`Exa API ${resp.status}: ${body.slice(0, 200)}`);
+	}
+
+	const data = (await resp.json()) as ExaSearchResponse;
+	if (!data.results || data.results.length === 0) return [];
+
+	return data.results.map((item) => {
+		let snippet = "";
+		if (item.highlights && item.highlights.length > 0) {
+			snippet = item.highlights.join(" ").replace(/\s+/g, " ").trim();
+		} else if (item.text) {
+			snippet = item.text.replace(/\s+/g, " ").trim();
+		}
+		return {
+			title: item.title || item.url,
+			url: item.url,
+			snippet,
+		};
+	});
 }
 
 const EXT_DIR = path.dirname(new URL(import.meta.url).pathname);
 const AUTH_PATH = path.join(EXT_DIR, "auth.json");
 
-function loadCredentials(): { apiKey: string; cseId: string } | null {
-	const envApiKey = process.env.GOOGLE_SEARCH_API_KEY ?? process.env.GOOGLE_API_KEY;
-	const envCseId = process.env.GOOGLE_CSE_ID ?? process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID;
-	if (envApiKey && envCseId) return { apiKey: envApiKey, cseId: envCseId };
+function loadCredentials(): { apiKey: string } | null {
+	const envApiKey = process.env.EXA_API_KEY;
+	if (envApiKey) return { apiKey: envApiKey };
 
 	if (!fs.existsSync(AUTH_PATH)) return null;
 	try {
 		const config = JSON.parse(fs.readFileSync(AUTH_PATH, "utf-8"));
-		const apiKey = config.google_search_api_key as string;
-		const cseId = config.google_cse_id as string;
-		if (apiKey && cseId) return { apiKey, cseId };
+		const apiKey = config.exa_api_key as string;
+		if (apiKey) return { apiKey };
 	} catch {}
 	return null;
 }
@@ -148,9 +176,6 @@ function buildSearchQuery(args: StructuredSearchArgs): BuiltSearchQuery {
 	for (const term of excludeTerms) {
 		parts.push(`-${term.includes(" ") ? quoteForSearch(term) : term}`);
 	}
-	if (site) {
-		parts.push(`site:${site}`);
-	}
 
 	return {
 		query: parts.join(" "),
@@ -166,7 +191,7 @@ export default function (pi: ExtensionAPI) {
 		name: "web_search",
 		label: "Web Search",
 		description:
-			"Search the web via Google Custom Search API. Build one search per call from a base query string, exact phrases, exclusions, and an optional site. Returns title, URL, and snippet.",
+			"Search the web via Exa Search API. Build one search per call from a base query string, exact phrases, exclusions, and an optional site. Returns title, URL, and snippet.",
 		promptSnippet:
 			"Search the web via a query string plus optional exactPhrases, excludeTerms, and site. Use one tool call per search angle.",
 		promptGuidelines: [
@@ -184,7 +209,7 @@ export default function (pi: ExtensionAPI) {
 			exactPhrases: Type.Optional(
 				Type.Array(Type.String(), {
 					description:
-						"Exact phrases to match. Each item becomes a quoted phrase in the final Google query.",
+						"Exact phrases to match. Each item becomes a quoted phrase in the final search query.",
 				}),
 			),
 			excludeTerms: Type.Optional(
@@ -201,9 +226,9 @@ export default function (pi: ExtensionAPI) {
 			),
 			count: Type.Optional(
 				Type.Number({
-					description: "Number of results to return (default: 5, max: 10)",
+					description: "Number of results to return (default: 5, max: 20)",
 					minimum: 1,
-					maximum: 10,
+					maximum: 20,
 				}),
 			),
 		}),
@@ -212,17 +237,17 @@ export default function (pi: ExtensionAPI) {
 			const creds = loadCredentials();
 			if (!creds) {
 				throw new Error(
-					`Missing Google Custom Search credentials. Set GOOGLE_SEARCH_API_KEY and GOOGLE_CSE_ID, or create ${AUTH_PATH} from auth.example.json. Get credentials from https://developers.google.com/custom-search/v1/introduction`,
+					`Missing Exa Search credentials. Set EXA_API_KEY, or create ${AUTH_PATH} from auth.example.json.`,
 				);
 			}
 
 			const count = params.count ?? 5;
 			const built = buildSearchQuery(params);
-			const results = await googleSearch(
+			const results = await exaSearch(
 				built.query,
 				count,
 				creds.apiKey,
-				creds.cseId,
+				built.site,
 				signal,
 			);
 
