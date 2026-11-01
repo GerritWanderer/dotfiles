@@ -4,7 +4,7 @@ description: General-purpose worker — bounded, well-specified programming task
 tools: read, write, edit, bash, web_search, web_fetch
 subagent_agents: scout, researcher
 model: github-copilot/gemini-3.8-flash
-thinking: high
+thinking: medium
 system-prompt: append
 auto-exit: true
 ---
