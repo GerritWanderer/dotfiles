@@ -2,7 +2,7 @@
 name: researcher
 description: Web researcher — searches the web and synthesizes findings
 tools: web_search, web_fetch, safe_bash
-model: github-copilot/gpt-5.6-luna
+model: github-copilot/gpt-6-luna
 thinking: medium
 system-prompt: append
 auto-exit: true

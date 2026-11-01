@@ -4,7 +4,7 @@ description: OpenSpec explore mode — interactive thinking partner for investig
 tools: read, grep, find, ls, write, bash
 subagent_agents: scout, researcher
 skills: openspec-explore
-model: github-copilot/gpt-6-sol
+model: github-copilot/gpt-6.1-sol
 thinking: xhigh
 system-prompt: append
 auto-exit: false
