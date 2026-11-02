@@ -25,3 +25,7 @@ rex.bind("ctrl+space>x", "pane.close")
 rex.bind("alt+cmd+e", "session.open_on_web")
 -- Shortcuts recorded in Rex, written the way a configuration file spells them.
 -- Paste them into your init.lua, then use Reset All in Rex to clear them there.
+--
+for i = 1, 9 do
+  rex.bind("ctrl+" .. i, "client.tab.goto", { index = i })
+end
