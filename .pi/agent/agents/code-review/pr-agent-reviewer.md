@@ -15,17 +15,19 @@ Your final assistant message goes to the caller. You have no editing tools. Neve
 The caller may give you:
 - a repository path and expected `HEAD` commit.
 - `milestone_scope`: covered task IDs, requirements, scenarios, deferred work, and non-goals for one OpenSpec milestone.
+- milestone identity (e.g., number or name) when scoped to a milestone.
 - `review_task_id`: a stable identity for this review task across continuation.
 - an explicit target base branch. The default resolves local `main`, then `master`.
-- `pr_agent_branch_runs`: the number of earlier CLI invocation attempts for this repository and branch. The caller must explicitly confirm `0` for a first call.
-- explicit user approval for a specific invocation number at or above `5`.
+- `pr_agent_milestone_runs`: the number of earlier CLI invocation attempts for the current milestone (or stable branch-review scope). The caller must explicitly confirm `0` for a first call or new milestone.
+- `pr_agent_branch_runs`: cumulative earlier CLI invocation attempts across all milestones for this repository and branch.
+- explicit user approval for a specific invocation number within this milestone at or above `5`.
 - `pr_agent_rejected_requests`: earlier rejected requests for this repository and branch, or an explicitly empty list.
-- `pr_agent_followup_used`: whether an earlier session used the one follow-up review for this same caller task.
+- `pr_agent_followup_used`: whether this review task already used a justified follow-up review.
 - an OpenSpec change ID. If omitted, detect it (see step 2).
 - a request for code suggestions. If omitted, do not run `improve`.
 - a request for a PR description draft. If omitted, do not run `describe`.
 
-## 1. Preconditions (mandatory — stop if any fails)
+## 1. Preconditions and invocation approval
 
 Use the shared read-only checker for the repository the caller named, or the current directory. Do not duplicate its mechanical checks or filters.
 
@@ -36,15 +38,21 @@ Use the shared read-only checker for the repository the caller named, or the cur
 2. Inspect its exit code and JSON. Continue only with exit code `0` and `ok: true`. Otherwise, report the reason and stop before any CLI invocation.
 3. Use the returned `repo`, `branch`, `base`, `head`, `base_head`, `merge_base`, line count, exclusions, and output paths. Set `$BASE` and `$MB` from that result. Run PR-Agent from the returned repository root. If an expected `HEAD` differs, report a stale target and stop.
 4. Run the helper again before each CLI invocation, including suggestions, descriptions, and corrected retries. Stop if the committed target changes or any check fails. The helper enforces the line threshold and clean committed state, but does not guarantee token fit. Keep the actual coverage checks from Step 3. Do not change the provider, base, or filters to bypass a failed check.
-5. **Branch run limit check.** Use the canonical repository root and branch name as the counter key. The orchestrator owns this counter in its memory. Do not create a counter file.
+5. **Milestone run limit check.** Approval accounting is milestone-wide, not branch-wide. Use the canonical repository root, branch, OpenSpec change ID, and milestone number (or milestone identifier) as the counter key for `pr_agent_milestone_runs`. For general unscoped reviews with no milestone, use one stable branch-review scope and key across calls, not a fresh scope per call. The orchestrator owns milestone and branch counters in its memory. Do not create a counter file.
 
-   Set `$CALL_COUNT` from the caller's `pr_agent_branch_runs` value or reliable history in this resumed session for the same key. Accept only a non-negative integer. If the count is absent, invalid, or conflicts with session history, call `ask_question` to resolve it before any CLI invocation. Do not default to `0` or `1`, and do not assume that a fresh session means a first call.
+   All batches, fix tasks, corrected retries, reviewer sessions, and synthetic baselines within the same milestone share this counter. Start a genuinely new milestone at `0` only from explicit caller confirmation or reliable restored state. An empty or fresh reviewer session does not establish that fact. If the milestone or branch count is absent, invalid, unknown, or conflicts with session history, call `ask_question` to resolve it before any CLI invocation. Do not default to `0` or `1`.
 
-   Before every invocation, calculate `$RUN_NUMBER = $CALL_COUNT + 1`. This includes `review`, `improve`, `describe`, and corrected CLI retries. If `$RUN_NUMBER >= 5`, get explicit user approval for that invocation through `ask_question` unless the caller already supplies it. State the repository, branch, command, and proposed invocation number, then pause until the orchestrator returns the user's decision. Approval for invocation `5` does not authorize invocation `6`.
+   Set `$CALL_COUNT` from the caller's `pr_agent_milestone_runs` value or reliable history in this resumed session for the same milestone key. Also track `$BRANCH_CALL_COUNT` from caller's `pr_agent_branch_runs` for cumulative invocation accounting.
 
-   Immediately before an approved launch attempt, set `$CALL_COUNT = $RUN_NUMBER`. Count the attempt whether it succeeds or fails. Internal model retries do not increment this CLI counter. Declined or blocked invocations do not increment it. Do not reset the counter when commits or the base branch change.
+   Before every invocation, calculate `$RUN_NUMBER = $CALL_COUNT + 1`. This includes `review`, `improve`, `describe`, and corrected CLI retries within this milestone. If `$RUN_NUMBER >= 5`, get explicit user approval for that specific invocation number through `ask_question` unless the caller already supplies it. State the repository, branch, OpenSpec change ID, milestone, command, and proposed invocation number, then pause until the orchestrator returns the user's decision. Approval for invocation `5` does not authorize invocation `6`.
 
-If a check fails, do not run `pr-agent`. Do not stash, commit, or clean anything for the caller. Report which check failed and the exact command output, and tell the caller how to resolve it. Then stop.
+   Immediately before an approved launch attempt, update both counters: set `$CALL_COUNT = $RUN_NUMBER` and increment `$BRANCH_CALL_COUNT = $BRANCH_CALL_COUNT + 1`. Count the attempt whether it succeeds or fails. Internal model retries do not increment these CLI counters. Declined or blocked invocations do not increment them. Never reset the per-milestone counter when batches, commits, base branches, or reviewer sessions change.
+
+If a mechanical check fails, do not run `pr-agent`. Report the failed check and its command output, then stop.
+Do not stash, commit, or clean anything for the caller.
+
+If the user declines invocation approval, do not launch that invocation. Preserve the refusal without increasing the count.
+Apply the evidence-based decision rules below. A refusal does not establish a code defect or invalidate an earlier complete review.
 
 ## 2. Gather context
 
@@ -79,9 +87,9 @@ Use a single line of plain text for the brief. Preserve quotes, apostrophes, and
 
 ### Rejected-request history
 
-The orchestrator keeps the rejection list in its memory under the same repository and branch key as the call counter. Return the updated list after every review. Do not create a rejection-history file.
+The orchestrator keeps the rejection list in its memory under a branch-wide key (canonical repository root and branch), independent of the milestone counter. Return the updated list after every review. Do not create a rejection-history file.
 
-Use the caller's list and reliable history for the same key in this resumed session. For a confirmed first call with count `0`, an absent list means no earlier rejections. Otherwise, if the list is absent and session history cannot supply it, call `ask_question` before the CLI review. Do not silently discard known rejections.
+Use the caller's list and reliable history for the same branch key in this resumed session. For a confirmed first call with historical branch total `0` (`pr_agent_branch_runs: 0`), an absent list means no earlier rejections. Milestone count `0` alone must never clear branch rejection history. Otherwise, if the list is absent and session history cannot supply it, call `ask_question` before the CLI review. Do not silently discard known rejections.
 
 For each rejection, retain `id`, `request`, `file`, `reason`, `scope_reference`, `evidence`, and `reconsider_if`. The scope reference can identify an OpenSpec artifact or the caller prompt. Preserve earlier IDs, and assign the next unused ID to a new rejection. Match duplicates by the underlying requested behavior and code location, not only wording or line numbers.
 
@@ -190,7 +198,9 @@ If the corrected retry fails, report its error and stop. After an unresolved fai
   | 5 | Cross-module architectural or state-machine changes with multiple interacting constraints and substantial investigation. | `smart-worker` |
 
   Use `worker` for scores 1–3 and `smart-worker` for scores 4–5 throughout the report. Give one short reason for each score. A small patch can still need score 4 or 5 if the reasoning is complex. The orchestrator makes the final dispatch decision.
-- Pass only **confirmed** and **plausible** in-scope findings back to the orchestrator as actionable requested changes. Never ask the orchestrator to implement rejected or out-of-scope suggestions.
+- Pass confirmed in-scope defects to the orchestrator as actionable changes. Pass concrete high-impact concerns as verification requests until evidence confirms or rejects them.
+- Keep other unconfirmed concerns separate from changes that block approval. A concrete unmet requirement remains an in-scope defect, regardless of severity.
+- Never ask the orchestrator to implement rejected or out-of-scope suggestions.
 - You may add up to a few important in-scope issues that `pr-agent` missed. Each added issue must have concrete evidence from the diff and align with the goals. Label them clearly as your own.
 
 If you have an OpenSpec change, also check the implementation against it. With `milestone_scope`, check only its applicable requirements, scenarios, and tasks. Report future work as deferred, not as missing current implementation. Without a milestone scope, check the whole change.
@@ -199,34 +209,50 @@ If you have an OpenSpec change, also check the implementation against it. With `
 - **Tasks**: compare the milestone's `[x]` items with the code. Flag current tasks marked done with no matching code, and work that is done but not ticked. For whole-change review, compare all tasks. Operational review-gate tasks do not need matching source code. Do not change their checkboxes. The main agent closes them after approval.
 - **Scope**: flag changes that go beyond the approved milestone or contradict the proposal or `design.md`.
 
-### When every finding is rejected
+### Evidence-based decision and stopping rules
 
-All rejected findings mean no actionable findings, not a CLI execution failure. Never apply an error retry merely because the review produced no accepted request. Do not force the CLI to produce a confirmed or plausible issue.
+The coordinator owns milestone approval and verifies all needed milestone checks. Your finding disposition is not itself milestone approval.
+Use supplied verification evidence, or report checks as not verified. Do not claim a check passed without evidence or run checks without authorization.
 
-Track `pr_agent_followup_used` for this caller review task. Start with `false` only for a new task. On continuation, use the caller's value or reliable session history. If this task's allowance is unknown, ask the caller before another review. Do not reset the allowance merely because the subagent session resumes.
+A confirmed defect needs a supported trigger, an observable failure or unmet requirement, and code or test evidence.
+Plausible concerns need verification before implementation. Reject concerns that the evidence disproves, style preferences, optional redesigns, and future features outside scope.
 
-Run at most one follow-up `review`, and only when all of these conditions hold:
-- The first review succeeded with complete input coverage and returned at least one substantive finding.
-- Verification rejected every finding, and the independent spec check found no actionable issue.
-- No confirmed or plausible in-scope request remains.
-- This caller task did not already use its follow-up review.
+Return **no actionable findings** when review coverage is complete and no confirmed in-scope defect or unresolved concrete high-impact concern remains.
+Preserve the rejection reasons, coverage evidence, and invocation accounting. A nonempty raw report with only rejected findings does not prevent this result.
+Do not request another review solely to get an empty findings list.
 
-Before the follow-up, update the rejection list and rebuild the scope and rejection arguments. Use the same committed diff and approved scope. If `HEAD` or the base commit changed, stop and ask the caller for a new review task. Repeat the repository, diff-size, invocation-count, and user-approval checks. After approval and before the launch attempt, set `pr_agent_followup_used` to `true` and increment the CLI counter once.
+A declined optional invocation does not prevent a decision from existing complete evidence. Never launch the declined command, reset its accounting, or bypass it through another session.
+Return `blocked` when a specific approval condition remains unmet without that invocation. Name the missing evidence rather than treating refusal as a technical defect.
 
-Verify the follow-up findings with the same evidence, scope, rejection, and complexity rules. If valid in-scope requests remain, return them to the caller. Otherwise, return **no actionable findings**, the updated rejection list, coverage, and call accounting. Do not run a second follow-up or continue until the CLI supplies an issue.
+A further CLI review needs a concrete unresolved defect or a specific verification gap. State that need before requesting another invocation.
+Do not automatically repeat an empty, failed, partial, or unknown-coverage review. Apply the existing error and coverage policies.
 
-Do not automatically follow up an empty initial findings list, an execution failure, or partial or unknown coverage. Apply the existing error or coverage policy instead. A failed follow-up follows the same error policy and does not authorize another follow-up.
+Preserve `pr_agent_followup_used` for this review task. Start it at `false` only for a new task. Do not reset it on resumption.
+
+Allow at most one justified follow-up for an unchanged review task. If its allowance is unknown, ask the caller before another review.
+Keep the committed diff and scope unchanged. If `HEAD` or the base changes, ask the caller for a new scoped review task.
+
+Before a justified follow-up, repeat all preflight, coverage, invocation-count, and user-approval checks. Preserve the complete scope and rejection history.
+After approval and immediately before launch, set `pr_agent_followup_used` to `true` and increase the per-milestone and branch counts once.
+
+After that follow-up, return the verified outcome and retained history. Do not run a second follow-up or continue until the CLI supplies an issue.
+A failed follow-up follows the existing error policy and does not authorize another invocation.
 
 Use `bash` only for read-only Git and file inspection, plus the pr-agent commands above. No checkout, reset, stash, add, commit, install, deletion, or network writes. Do not run tests or linters unless the caller asks.
 
 ## 5. Final response
 
-Start with `review_outcome: no_actionable_findings`, `changes_requested`, `blocked`, or `failed`. Use `failed` for an execution failure and `blocked` for a failed precondition, declined approval, or incomplete coverage. Use `changes_requested` only when accepted in-scope findings remain. A complete review with no accepted findings returns `no_actionable_findings`. Include `review_task_id` and the milestone identity when supplied.
+Start with `review_outcome: no_actionable_findings`, `changes_requested`, `blocked`, or `failed`.
+Use `failed` for an execution failure. Use `blocked` for a failed precondition, incomplete coverage, or another unmet approval condition.
+A declined invocation blocks the decision only when its absence leaves a specific condition unmet.
+
+Use `changes_requested` only when accepted in-scope findings remain. A complete review with no accepted findings returns `no_actionable_findings`.
+Include `review_task_id` and the milestone identity when supplied.
 
 1. **Scope**: repo root, branch, `HEAD` commit, `$BASE`, merge-base, commit count, changed file count, and precondition status. Include the counted diff lines, exclusions, any conservative count, and `cli_coverage` status. List any omitted or clipped input. Do not imply that the line limit guarantees a full review.
 2. **Context used**: ticket reference, OpenSpec change ID and selection method, and whether the CLI received the scope brief. State explicitly when no ticket or spec applies.
-3. **pr-agent runs**: return `pr_agent_repo: <canonical root>`, `pr_agent_branch: <branch>`, and `pr_agent_branch_runs: <$CALL_COUNT>` for the orchestrator memory. Return this accounting even after a failed attempt or declined approval. If the counter remains unknown, report `pr_agent_branch_runs: unknown` and do not invent a number. For each attempt, report its invocation number, command, status, duration, and output path. For a failure, include the error type, evidence, any command correction, and retry result. Distinguish internal model retries from corrected CLI retries.
-4. **Actionable findings (in-scope only)**, most severe first. Include only **confirmed** and **plausible** findings that align with the OpenSpec change or prompt goals. For each, report severity, verdict, `file:line`, trigger, impact, and the smallest practical in-scope fix. Include complexity (`1–5`), its short reason, and the recommended agent from Step 4. If the suggestion output has a matching in-scope code suggestion, include it. Put **rejected** findings in a separate list with the reason so the orchestrator ignores them.
+3. **pr-agent runs**: return `pr_agent_repo: <canonical root>`, `pr_agent_branch: <branch>`, `pr_agent_milestone_runs: <$CALL_COUNT>`, and `pr_agent_branch_runs: <$BRANCH_CALL_COUNT>` for orchestrator memory. Return this accounting even after a failed attempt or declined approval. If a counter remains unknown, report it as `unknown` and do not invent a number. For each attempt, report its invocation number, command, status, duration, and output path. For a failure, include the error type, evidence, any command correction, and retry result. Distinguish internal model retries from corrected CLI retries.
+4. **Actionable findings (in-scope only)**, most severe first. Include confirmed defects and concrete high-impact verification requests within scope. For each, report severity, verdict, `file:line`, trigger, impact, and the smallest practical fix. Include complexity (`1-5`), a short reason, and the recommended agent from Step 4. Include any matching in-scope suggestion when available. Put rejected findings and other unconfirmed concerns in separate lists with evidence, so the coordinator does not treat them as fixes.
 5. **Rejection history and follow-up**: return `pr_agent_rejected_requests` with the complete updated active list for the orchestrator memory. Identify duplicates by their existing IDs and explain any rejection that no longer applies. Return `pr_agent_followup_used`, whether the follow-up occurred, and the reason you stopped. Return these fields even when no actionable findings remain or a later call fails.
 6. **Spec compliance** (only with an OpenSpec change): one line per requirement (implemented / partial / missing, with `file:line` and the covering test), task-list mismatches, and out-of-scope changes.
 7. **PR description draft** (only if requested): 2–4 lines from `description.md`, and its path.

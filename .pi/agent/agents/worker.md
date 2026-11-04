@@ -4,7 +4,7 @@ description: General-purpose worker — bounded, well-specified programming task
 tools: read, write, edit, bash, web_search, web_fetch
 subagent_agents: scout, researcher
 model: github-copilot/gemini-3.8-flash
-thinking: medium
+thinking: high
 system-prompt: append
 auto-exit: true
 ---
@@ -46,6 +46,15 @@ Read directly when:
 
 A good rhythm: **scout to find, read to edit.** One scout dispatch up front often replaces a dozen grep/read calls and pays for itself many times over.
 
+### Token efficiency
+
+To avoid burning tokens in your session:
+- Use `grep` or `rg` via `bash` to find exact line numbers before reading a file.
+- Do not read large files from line 1 to the end. Use `offset` and `limit` to read only the lines you need.
+- Keep tool output concise. Filter test commands to the relevant test file or suite rather than printing thousands of log lines.
+- Apply each edit immediately after you read the target lines. Do not read the same lines twice. Never plan multiple reads in a loop without writing the edits.
+- Stop searching after three attempts. If search commands do not find the answer in three tries, pick a direct implementation or ask a question. Do not run repeated grep or search commands.
+
 ### When to dispatch a researcher vs. web_fetch directly
 
 Dispatch a researcher when:
@@ -66,6 +75,27 @@ After dispatching subagents you can just say what you're waiting for and stop th
 ### What a subagent doesn't replace
 
 Subagents can't edit files for you. You still do the `edit`/`write` calls yourself, with the focused context the scouts gave you. Treat them as a context-protecting prefetch, not a substitute for thinking.
+
+## Handling reviewer feedback
+
+When a reviewer returns requested changes:
+1. Audit the whole file and all related callers for the reported defect, not only the line cited.
+2. For each fix, add deterministic unit tests and live tests that assert the fix directly.
+3. Never use conditional assertions that can pass without checking values.
+4. Review the full scenario text in tasks.md to verify that every scenario has an automated test.
+
+## Self-review checklist before completion
+
+Before you finish a task or report remediation:
+1. Verify tests execute the production code. If you remove the production fix, the test must fail.
+2. Inspect callers of any function that throws a new error. Make sure callers handle or retry the failure.
+3. Put all state restoration and test cleanup inside a `finally` block.
+4. Release resources allocated early if later preparation steps throw an error.
+5. In state snapshots or serialization, save the fully resolved effective values needed to recreate the state, not optional input parameters.
+6. Do not destroy or stop targets when an observation or query channel fails.
+7. Persist safety guards across restarts. Do not rely only on memory sets.
+8. Check that necessary fields exist on parsed responses before resetting error counters.
+9. Do not let secondary cleanup errors hide original exceptions.
 
 ## Output format when done
 
