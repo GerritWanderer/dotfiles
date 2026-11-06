@@ -1,6 +1,6 @@
 ---
 name: worker-selection
-description: Select worker or smart-worker by reasoning difficulty. Use when rating fix complexity, delegating coding tasks, or starting an OpenSpec implementation workstream.
+description: Select worker or smart-worker by reasoning difficulty. Use when rating fix complexity or delegating coding tasks.
 ---
 
 # Worker selection
@@ -21,4 +21,4 @@ Both workers share one execution contract. The parent selects the model and supp
 - Missing requirements need clarification, not another model.
 - Workers do not stop or change models solely because task complexity increases. Investigation delegation remains optional.
 
-For a parent-owned OpenSpec implementation workstream, read `references/openspec-workflow.md` relative to this skill directory. Delegated workers follow their assigned tasks rather than the parent branch and review procedure.
+This skill selects workers only. It does not activate branch stacks, per-task commits, or automatic reviews.

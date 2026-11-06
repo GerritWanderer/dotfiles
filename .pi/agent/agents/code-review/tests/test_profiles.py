@@ -1,7 +1,10 @@
 """Check the agent profiles and shared workflow references."""
 
+import os
 from pathlib import Path
 import re
+import shlex
+import subprocess
 import unittest
 
 
@@ -51,6 +54,71 @@ class ProfileContractTests(unittest.TestCase):
         self.assertIn("--pr_reviewer.enable_review_coverage_footer=true", body)
         self.assertIn("--pr_code_suggestions.enable_suggestions_coverage_footer=true", body)
 
+    def test_reviewer_places_guarded_json_option_before_review(self):
+        _, body = profile("pr-agent-reviewer")
+        command = re.search(r"```bash\n(.*?)\n```", body, re.S).group(1)
+        base = "feature/review-base"
+        output = "/tmp/review repo's $literal/review.md.json"
+        setup = (
+            f"BASE={shlex.quote(base)}\nREVIEW_JSON={shlex.quote(output)}\n"
+            "COMMON_ARGS=('--ignore.glob=[]' '--config.propagate_tool_errors=true')\n"
+            "REVIEW_INSTRUCTIONS='review scope'\n"
+            "pr-agent() { printf '%s\\0' \"$@\"; }\n"
+        )
+        env = dict(os.environ)
+        env.pop("BASH_ENV", None)
+        result = subprocess.run(
+            ["bash", "--noprofile", "--norc", "-c", setup + command],
+            env=env, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(result.stdout.split("\0")[:-1], [
+            "--pr_url", base, "--json-output", output, "review",
+            "--ignore.glob=[]", "--config.propagate_tool_errors=true",
+            "--pr_reviewer.enable_review_coverage_footer=true",
+            "--pr_reviewer.extra_instructions=review scope",
+        ])
+
+    def test_reviewer_blocks_empty_base_or_json_output(self):
+        _, body = profile("pr-agent-reviewer")
+        command = re.search(r"```bash\n(.*?)\n```", body, re.S).group(1)
+        for missing in ("BASE", "REVIEW_JSON"):
+            with self.subTest(missing=missing):
+                values = {"BASE": "main", "REVIEW_JSON": "/tmp/review.md.json"}
+                values[missing] = ""
+                setup = "\n".join(f"{key}={shlex.quote(value)}" for key, value in values.items())
+                setup += "\nCOMMON_ARGS=()\nREVIEW_INSTRUCTIONS='scope'\n"
+                setup += "pr-agent() { printf 'UNEXPECTED_COMMAND'; }\n"
+                env = dict(os.environ)
+                env.pop("BASH_ENV", None)
+                result = subprocess.run(
+                    ["bash", "--noprofile", "--norc", "-c", setup + command],
+                    env=env, text=True, capture_output=True, check=False,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "")
+                self.assertIn("is required", result.stderr)
+
+    def test_structured_coverage_keeps_failure_checks(self):
+        _, reviewer = profile("pr-agent-reviewer")
+        for token in (
+            "output_paths.review_json", "coverage.files_not_reviewed",
+            "coverage.files_partially_reviewed", "arrays of strings",
+            "Do not replace missing fields with empty arrays.",
+            "Failed or incomplete chunks block complete coverage",
+            "Missing, invalid, or stale JSON", "final full-diff packing",
+            "A missing warning footer alone is not a blocker.",
+        ):
+            self.assertIn(token, reviewer)
+        _, coordinator = profile("pr-review-orchestrator")
+        for token in (
+            "output_paths.review_json", "all four resolved output paths",
+            "Missing, invalid, or stale JSON", "failed or incomplete chunks remain blockers",
+            "Empty coverage arrays alone do not prove complete coverage.",
+        ):
+            self.assertIn(token, coordinator)
+
     def test_coordinator_owns_entry_check_and_local_repairs(self):
         fields, body = profile("pr-review-orchestrator")
         self.assertEqual(fields["model"], "github-copilot/gpt-6.1-terra")
@@ -65,6 +133,38 @@ class ProfileContractTests(unittest.TestCase):
         self.assertIn("initial failed fix", body)
         self.assertIn("If it returns `blocked`, return `blocked` with its reason", body)
         self.assertIn("Partial or unknown", (AGENT_DIR / "agents" / "pr-agent-reviewer.md").read_text())
+
+    def test_entry_examples_assign_values_before_argument_expansion(self):
+        _, coordinator = profile("pr-review-orchestrator")
+        reference = (
+            AGENT_DIR / "skills" / "openspec-parent-workflow" / "references" / "openspec-workflow.md"
+        ).read_text()
+        repository = "/tmp/review repo's $literal"
+        base = "feature/review-base"
+        script = str(AGENT_DIR / "agents" / "code-review" / "preflight.py")
+        for source, body in (("coordinator", coordinator), ("parent", reference)):
+            with self.subTest(source=source):
+                example = re.search(r"```bash\n(.*?)\n```", body, re.S)
+                self.assertIsNotNone(example, "The entry example must use one Bash block.")
+                command = example.group(1).replace("'<repository>'", shlex.quote(repository))
+                command = command.replace("'<base>'", shlex.quote(base))
+                for inherited in (None, {"REPO": "stale repository", "BASE": "stale-base"}):
+                    with self.subTest(inherited=inherited):
+                        env = dict(os.environ)
+                        for key in ("REPO", "BASE", "BASH_ENV"):
+                            env.pop(key, None)
+                        env.update(inherited or {})
+                        capture = "python() { printf '%s\\0' \"$@\"; }\n"
+                        result = subprocess.run(
+                            ["bash", "--noprofile", "--norc", "-c", capture + command],
+                            env=env, text=True, capture_output=True, check=False,
+                        )
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertEqual(result.stderr, "")
+                        self.assertEqual(
+                            result.stdout.split("\0")[:-1],
+                            [script, "--repo", repository, "--base", base],
+                        )
 
     def test_public_result_schema_matches_contract(self):
         _, body = profile("pr-review-orchestrator")
@@ -81,26 +181,51 @@ class ProfileContractTests(unittest.TestCase):
         self.assertNotIn("review_skipped", schema)
         self.assertNotIn("base_head", schema)
 
-    def test_shared_selection_table_and_reference(self):
+    def test_worker_selection_does_not_activate_openspec_workflow(self):
         directory = AGENT_DIR / "skills" / "worker-selection"
         text = (directory / "SKILL.md").read_text()
         self.assertIn("name: worker-selection", text)
         for score in range(1, 6):
             self.assertIn(f"| {score} |", text)
-        self.assertTrue((directory / "references" / "openspec-workflow.md").is_file())
+        self.assertFalse((directory / "references" / "openspec-workflow.md").exists())
+        self.assertNotIn("starting an OpenSpec implementation workstream", text)
+        self.assertIn("This skill selects workers only.", text)
+        self.assertIn("does not activate branch stacks", text)
         self.assertIn("formal score report", text)
         self.assertIn("Missing requirements need clarification", text)
 
-    def test_global_instructions_keep_parent_and_worker_roles_separate(self):
+    def test_global_instructions_do_not_activate_openspec_workflow(self):
         text = (AGENT_DIR / "AGENTS.md").read_text()
-        self.assertIn("A reference to a milestone means a task group.", text)
-        self.assertIn("parent-owned", text)
-        self.assertIn("Delegated agents follow their assigned tasks", text)
-        self.assertIn("review_skipped", text)
-        self.assertIn("manually", text)
+        self.assertIn("worker-selection", text)
+        self.assertIn("explicit-only `openspec-parent-workflow`", text)
+        self.assertIn("Do not apply those rules to ordinary coding", text)
+        self.assertIn("existing proposal does not activate", text)
+        self.assertNotIn("starting an OpenSpec implementation workstream", text)
+        self.assertNotIn("references/openspec-workflow.md", text)
+        self.assertNotIn("review_skipped", text)
+        self.assertNotIn("A reference to a milestone means a task group.", text)
+
+    def test_openspec_parent_skill_is_explicit_and_scoped(self):
+        directory = AGENT_DIR / "skills" / "openspec-parent-workflow"
+        text = (directory / "SKILL.md").read_text()
+        _, frontmatter, body = text.split("---", 2)
+        fields = dict(line.split(":", 1) for line in frontmatter.strip().splitlines())
+        self.assertEqual(fields["name"].strip(), "openspec-parent-workflow")
+        self.assertEqual(fields["disable-model-invocation"].strip(), "true")
+        self.assertIn("Only an explicit user activation starts this workflow.", body)
+        self.assertIn("/skill:openspec-parent-workflow <change-id>", body)
+        self.assertIn("before `/opsx-apply <change-id>`", body)
+        self.assertIn("existing proposal, or worker selection does not activate", body)
+        self.assertIn("main agent", body)
+        self.assertIn("Delegated agents follow their assigned tasks", body)
+        self.assertIn("A reference to a milestone means a task group.", body)
+        self.assertIn("the user explicitly switches to ordinary work", body)
+        self.assertIn("A different OpenSpec change needs fresh explicit activation.", body)
+        self.assertIn("references/openspec-workflow.md", body)
+        self.assertTrue((directory / "references" / "openspec-workflow.md").is_file())
 
     def test_caller_reference_covers_workflow_outcomes(self):
-        text = (AGENT_DIR / "skills" / "worker-selection" / "references" / "openspec-workflow.md").read_text()
+        text = (AGENT_DIR / "skills" / "openspec-parent-workflow" / "references" / "openspec-workflow.md").read_text()
         for token in (
             "<change-id>-<n>", "<change-id>-<n>-<m>", "2,500", "review_approved", "not_reviewed",
             "review_skipped", "blocked", "failed", "artifact_paths", "expected_head", "deferred_tasks",

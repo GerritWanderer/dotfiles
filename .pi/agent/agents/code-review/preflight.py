@@ -457,9 +457,9 @@ def check_clean(repo, data, outputs):
 
 def checked_output_paths(repo, values):
     if not isinstance(values, dict) or set(values) != {"review", "improve", "describe"}:
-        raise Failure("invalid_probe_output", "The package probe did not resolve all three output paths.")
-    paths = {}
-    for key, value in values.items():
+        raise Failure("invalid_probe_output", "The package probe did not resolve all three provider output paths.")
+
+    def resolve_output(value):
         if not isinstance(value, str) or not value or "\0" in value:
             raise Failure("invalid_output_path", "A local output path is invalid.")
         path = (repo / value).resolve()
@@ -467,7 +467,13 @@ def checked_output_paths(repo, values):
             raise Failure("unsupported_external_output_path", "Local output paths must resolve inside the canonical reviewed repository.")
         if path == repo or path.is_dir():
             raise Failure("invalid_output_path", "A local output path refers to a directory.")
-        paths[key] = path
+        return path
+
+    values = dict(values)
+    paths = {key: resolve_output(value) for key, value in values.items()}
+    review = paths["review"]
+    values["review_json"] = str(review.with_name(review.name + ".json"))
+    paths["review_json"] = resolve_output(values["review_json"])
     git_dir = Path(git_line(repo, "rev-parse", "--absolute-git-dir")).resolve()
     for path in paths.values():
         if path == repo / ".git" or path.is_relative_to(git_dir):
@@ -483,6 +489,13 @@ def checked_output_paths(repo, values):
                 raise Failure("tracked_output_collision", "A local output path is tracked or resolves to a tracked source file.", 1)
             if tracked.exists() and path.exists() and os.path.samefile(tracked, path):
                 raise Failure("tracked_output_collision", "A local output path is a hard link to a tracked source file.", 1)
+    review_json = paths["review_json"]
+    for key in ("review", "improve", "describe"):
+        path = paths[key]
+        if review_json == path or (
+            review_json.exists() and path.exists() and os.path.samefile(review_json, path)
+        ):
+            raise Failure("output_path_collision", "The review JSON path must not alias a Markdown output.")
     return paths
 
 
@@ -532,7 +545,7 @@ def empty_result():
         "base_head": None, "merge_base": None, "commits": None,
         "changed_files": 0, "reviewable_files": [], "changed_lines": 0,
         "excluded_files": [],
-        "output_paths": {"review": None, "improve": None, "describe": None},
+        "output_paths": {"review": None, "improve": None, "describe": None, "review_json": None},
         "filter_source": None,
     }
 
@@ -590,7 +603,7 @@ def evaluate(repo_path, base, result):
         raise Failure("no_branch_commits", "The current branch has no commits outside the local base.", 1)
 
     config = package_probe(repo)
-    result["output_paths"] = config["output_paths"]
+    result["output_paths"].update(config["output_paths"])
     result["filter_source"] = config["filter_source"]
     outputs = checked_output_paths(repo, config["output_paths"])
     result["output_paths"] = {key: str(path) for key, path in outputs.items()}
@@ -622,7 +635,8 @@ def evaluate(repo_path, base, result):
         raise Failure("incomplete_provider_diff", "The package probe omitted changed files.")
     if git_line(repo, "rev-parse", "HEAD^{commit}") != result["head"] or git_line(repo, "rev-parse", base_ref + "^{commit}") != result["base_head"] or git_line(repo, "symbolic-ref", "--quiet", "--short", "HEAD") != result["branch"] or status(repo) != initial_status:
         raise Failure("repository_changed", "The branch or working tree changed during preflight.")
-    checked_output_paths(repo, config["output_paths"])
+    if checked_output_paths(repo, config["output_paths"]) != outputs:
+        raise Failure("configuration_changed", "Local output paths changed during preflight.")
     if not result["reviewable_files"]:
         result.update(ok=True, reason="no_reviewable_input", message="No reviewable UTF-8 text patch remains after the installed shared filters.", changed_lines=0)
         return

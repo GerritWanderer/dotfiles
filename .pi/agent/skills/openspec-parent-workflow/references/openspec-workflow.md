@@ -1,6 +1,9 @@
 # OpenSpec parent workflow
 
-These instructions apply to the parent session that owns an implementation workstream. Delegated agents follow their task assignments. Read the selection skill before choosing workers.
+These instructions apply only to the main agent in an explicitly activated `openspec-parent-workflow` session.
+The parent owns the selected OpenSpec implementation change. Delegated agents follow their task assignments.
+After completion, cancellation, or an explicit return to ordinary work, do not apply this workflow to later tasks.
+Read the selection skill before choosing workers.
 
 ## Resolve the change and tasks
 
@@ -23,9 +26,15 @@ Use the user's target base, or local `main` or `master` by default. Do not fetch
 
 ## Size trigger and review entry
 
-After each implementation task commit, measure reviewable additions plus deletions against the immediate base:
+After each implementation task commit, measure reviewable additions plus deletions against the immediate base.
+Replace the placeholders with shell-quoted values from the resolved repository and immediate base.
+Execute the assignments as separate commands before Python, all in one Bash call. Do not use command-prefix assignments.
 
-`python /home/gerrit/dotfiles/.pi/agent/agents/code-review/preflight.py --repo "$REPO" --base "$BASE"`
+```bash
+REPO='<repository>'
+BASE='<base>'
+python /home/gerrit/dotfiles/.pi/agent/agents/code-review/preflight.py --repo "${REPO:?repository is required}" --base "${BASE:?base is required}"
+```
 
 Use `changed_lines` only from a successful result. The helper applies the same exclusions as the reviewer. Empty filtered input counts as zero lines. Size has no preflight limit.
 
