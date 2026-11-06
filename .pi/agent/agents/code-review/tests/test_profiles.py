@@ -63,6 +63,7 @@ class ProfileContractTests(unittest.TestCase):
         self.assertIn("not_reviewed", body)
         self.assertIn("never closes", body)
         self.assertIn("initial failed fix", body)
+        self.assertIn("If it returns `blocked`, return `blocked` with its reason", body)
         self.assertIn("Partial or unknown", (AGENT_DIR / "agents" / "pr-agent-reviewer.md").read_text())
 
     def test_public_result_schema_matches_contract(self):

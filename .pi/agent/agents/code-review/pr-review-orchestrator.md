@@ -53,7 +53,7 @@ Match findings by behavior and location, not wording or exact line numbers. A ne
 1. Start a fresh `pr-agent-reviewer` pass with the repository, branch, base, latest `expected_head`, `merge_base`, and `output_paths`.
 2. Pass `common_args` from the entry snapshot's `filter_source.overrides`. Also pass task scope, artifact paths, verification evidence, and the run's active `rejected_requests`.
 3. Await automatic child result delivery. Do not poll, inspect session logs for completion, or assume a pending result.
-4. If the reviewer fails, return `failed`. If coverage is partial or unknown, return `blocked`. Do not split branches, batch files, narrow scope, or raise limits.
+4. If the reviewer returns `failed`, return `failed`. If it returns `blocked`, return `blocked` with its reason. If coverage is partial or unknown, return `blocked`. Do not split branches, batch files, narrow scope, or raise limits.
 5. Inspect the reported findings and verify their triggers, evidence, and branch scope. Use targeted worker investigation when a plausible concern needs proof before a repair decision.
 6. Reject disproven findings, style preferences, optional redesigns, speculative hardening, and work outside the assigned scope. Preserve their reasons for the next pass.
 7. Classify ownership by behavior against the base. A current change that introduces or activates a failure in older code is a current finding.
