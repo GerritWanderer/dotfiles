@@ -22,7 +22,7 @@ spec.loader.exec_module(preflight)
 KEYS = {
     "ok", "reason", "message", "repo", "branch", "base", "head", "base_head",
     "merge_base", "commits", "changed_files", "reviewable_files", "changed_lines",
-    "max_changed_lines", "excluded_files", "output_paths", "filter_source",
+    "excluded_files", "output_paths", "filter_source",
 }
 
 
@@ -127,7 +127,6 @@ class RepoTestCase(unittest.TestCase):
         self.assertEqual(code, expected, result)
         self.assertEqual(result["reason"], reason, result)
         self.assertEqual(result["ok"], code == 0)
-        self.assertEqual(result["max_changed_lines"], 2000)
         self.assertEqual(before, self.repo.snapshot())
         return result
 
@@ -146,16 +145,13 @@ class PreflightTests(RepoTestCase):
         self.assertEqual(result["changed_files"], 1)
         self.assertEqual(result["reviewable_files"], ["feature.py"])
         self.assertEqual(result["changed_lines"], 2)
-        self.assertIn("not a token guarantee", result["message"])
+        self.assertIn("Clean local feature branch is ready for review.", result["message"])
 
-    def test_2000_passes(self):
-        self.repo.feature(2000)
-        self.assertEqual(self.run_check()["changed_lines"], 2000)
-
-    def test_2001_blocks(self):
-        self.repo.feature(2001)
-        result = self.run_check(expected=1, reason="changed_line_limit_exceeded")
-        self.assertEqual(result["changed_lines"], 2001)
+    def test_large_diff_over_2000_lines_passes(self):
+        self.repo.feature(2501)
+        result = self.run_check()
+        self.assertEqual(result["changed_lines"], 2501)
+        self.assertEqual(result["reason"], "ok")
 
     def test_additions_and_deletions_both_count(self):
         self.repo.write("source.py", "old\n" * 1000)
@@ -283,16 +279,19 @@ class PreflightTests(RepoTestCase):
     def test_pure_rename_and_empty_patch_are_not_reviewable(self):
         self.repo.git("mv", "seed.txt", "renamed.txt")
         self.repo.commit()
-        result = self.run_check(expected=1, reason="no_reviewable_input")
+        result = self.run_check(expected=0, reason="no_reviewable_input")
+        self.assertEqual(result["changed_lines"], 0)
+        self.assertEqual(result["reviewable_files"], [])
         self.assertEqual(result["excluded_files"], [{"path": "renamed.txt", "reason": "no_text_patch"}])
 
     def test_shared_exclusions_leave_no_input(self):
         self.repo.feature()
         result = self.run_check(
             probe=MockProbe(self.repo, exclusions={"feature.py": "shared_ignore_filter"}),
-            expected=1, reason="no_reviewable_input",
+            expected=0, reason="no_reviewable_input",
         )
         self.assertEqual(result["changed_lines"], 0)
+        self.assertEqual(result["reviewable_files"], [])
 
     def test_probe_failure_and_incomplete_patch_never_ok(self):
         self.repo.feature()
@@ -344,12 +343,31 @@ class PreflightTests(RepoTestCase):
         with mock.patch.object(preflight, "git", failed):
             self.run_check(expected=2, reason="git_command_failed")
 
-    def test_patch_hunk_count_handles_header_like_lines_and_control_chars(self):
-        patch = "@@ -1,2 +1,2 @@\n---removed\n-old\vtext\n+++added\n+new\ftext\n\\ No newline at end of file\n"
-        self.assertEqual(preflight.patch_changed_lines(patch), 4)
+    def test_print_review_globs_cli(self):
+        proc = subprocess.run([sys.executable, "-B", str(SCRIPT), "--print-review-globs"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.assertEqual(proc.returncode, 0)
+        self.assertEqual(proc.stderr, b"")
+        globs = json.loads(proc.stdout.decode("utf-8"))
+        self.assertEqual(globs, preflight.REVIEW_GLOBS)
+
+    def test_cli_failure_preserves_target_metadata(self):
+        before = self.repo.snapshot()
+        proc = subprocess.run(
+            [sys.executable, "-B", str(SCRIPT), "--repo", str(self.repo.path), "--base", "missing"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+        self.assertEqual(proc.returncode, 1)
+        result = json.loads(proc.stdout.decode("utf-8"))
+        self.assertEqual(result["reason"], "missing_base")
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["repo"], str(self.repo.path.resolve()))
+        self.assertEqual(result["branch"], "feature")
+        self.assertEqual(result["base"], "missing")
+        self.assertEqual(proc.stderr, b"")
+        self.assertEqual(before, self.repo.snapshot())
 
     def test_cli_usage_is_one_json_object_without_override(self):
-        for args in [[], ["--help"], ["--repo", str(self.repo.path), "--max-changed-lines", "9999"]]:
+        for args in [[], ["--help"], ["--repo", str(self.repo.path), "--extra-arg", "value"]]:
             with self.subTest(args=args):
                 proc = subprocess.run([sys.executable, "-B", str(SCRIPT), *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 self.assertEqual(proc.returncode, 2)
@@ -358,6 +376,28 @@ class PreflightTests(RepoTestCase):
                 self.assertEqual(value["reason"], "usage_error")
                 self.assertEqual(proc.stderr, b"")
 
+    def test_patch_hunk_count_handles_header_like_lines_and_control_chars(self):
+        patch = "@@ -1,2 +1,2 @@\n---removed\n-old\vtext\n+++added\n+new\ftext\n\\ No newline at end of file\n"
+        self.assertEqual(preflight.patch_changed_lines(patch), 4)
+
+    def test_invalid_environment_not_masked_by_zero_reviewable_input(self):
+        self.repo.write("README.md", "excluded\n")
+        self.repo.commit("markdown only")
+        self.repo.write("untracked.txt", "untracked\n")
+        self.run_check(expected=1, reason="untracked_files")
+        (self.repo.path / "untracked.txt").unlink()
+
+        self.repo.write("README.md", "dirty\n")
+        self.run_check(expected=1, reason="dirty_worktree")
+        self.repo.git("reset", "--hard", "HEAD")
+
+        paths = MockProbe(self.repo).paths
+        paths["review"] = ".git/index"
+        self.run_check(probe=MockProbe(self.repo, paths=paths), expected=2, reason="invalid_output_path")
+
+
+@unittest.skipUnless(preflight.PR_AGENT_EXECUTABLE.exists(), "Installed PR-Agent interpreter is unavailable")
+class InstalledSharedFilterTests(RepoTestCase):
     def test_probe_invalid_or_failed_output(self):
         self.repo.feature()
         for code, stdout in [(0, b'{}\n{}\n'), (0, b'{}\n'), (1, b'{"ok":true}')]:
@@ -367,9 +407,6 @@ class PreflightTests(RepoTestCase):
                     with self.assertRaises(preflight.Failure):
                         preflight.package_probe(self.repo.path)
 
-
-@unittest.skipUnless(preflight.PR_AGENT_EXECUTABLE.exists(), "Installed PR-Agent interpreter is unavailable")
-class InstalledSharedFilterTests(RepoTestCase):
     def test_offline_installed_filters_utf8_and_nul_safe_provider(self):
         files = {
             "feature.py": "source\n",
@@ -377,8 +414,27 @@ class InstalledSharedFilterTests(RepoTestCase):
             "data.map": "review this map\n",
             "vendor/lib.py": "excluded\n",
             "openspec/changes/change.md": "excluded\n",
-            "nested/uv.lock": "excluded\n",
-            "package-lock.json": "excluded\n",
+            "README.md": "root markdown\n",
+            "docs/guide.md": "nested markdown\n",
+            "nested/deep/doc.md": "deep nested markdown\n",
+            "package-lock.json": "root lock\n",
+            "nested/package-lock.json": "nested lock\n",
+            "yarn.lock": "root lock\n",
+            "nested/yarn.lock": "nested lock\n",
+            "pnpm-lock.yaml": "root lock\n",
+            "nested/pnpm-lock.yaml": "nested lock\n",
+            "Cargo.lock": "root lock\n",
+            "nested/Cargo.lock": "nested lock\n",
+            "Gemfile.lock": "root lock\n",
+            "nested/Gemfile.lock": "nested lock\n",
+            "poetry.lock": "root lock\n",
+            "nested/poetry.lock": "nested lock\n",
+            "uv.lock": "root lock\n",
+            "nested/uv.lock": "nested lock\n",
+            "composer.lock": "root lock\n",
+            "nested/composer.lock": "nested lock\n",
+            "go.sum": "root lock\n",
+            "nested/go.sum": "nested lock\n",
             "app.min.js": "excluded\n",
             "app.min.css": "excluded\n",
             "app.js.map": "excluded\n",
@@ -395,7 +451,21 @@ class InstalledSharedFilterTests(RepoTestCase):
         excluded = {row["path"]: row["reason"] for row in result["excluded_files"]}
         self.assertEqual(excluded["vendor/lib.py"], "shared_ignore_filter")
         self.assertEqual(excluded["openspec/changes/change.md"], "shared_ignore_filter")
-        for name in ["nested/uv.lock", "package-lock.json", "app.min.js", "app.min.css", "app.js.map", "photo.png"]:
+        all_excluded_globs = [
+            "README.md", "docs/guide.md", "nested/deep/doc.md",
+            "package-lock.json", "nested/package-lock.json",
+            "yarn.lock", "nested/yarn.lock",
+            "pnpm-lock.yaml", "nested/pnpm-lock.yaml",
+            "Cargo.lock", "nested/Cargo.lock",
+            "Gemfile.lock", "nested/Gemfile.lock",
+            "poetry.lock", "nested/poetry.lock",
+            "uv.lock", "nested/uv.lock",
+            "composer.lock", "nested/composer.lock",
+            "go.sum", "nested/go.sum",
+        ]
+        for name in all_excluded_globs:
+            self.assertEqual(excluded[name], "shared_ignore_filter", name)
+        for name in ["app.min.js", "app.min.css", "app.js.map", "photo.png"]:
             self.assertEqual(excluded[name], "shared_language_filter")
         self.assertEqual(excluded["binary.txt"], "binary_file")
         self.assertEqual(excluded["latin.txt"], "non_utf8_file")
@@ -435,23 +505,35 @@ class InstalledSharedFilterTests(RepoTestCase):
         self.assertEqual(result["excluded_files"], [{"path": "generated/message_pb2.py", "reason": "shared_ignore_filter"}])
 
     def test_installed_boundaries_and_script_json_stdout(self):
-        self.repo.feature(2000)
-        for count, code, reason in [(2000, 0, "ok"), (2001, 1, "changed_line_limit_exceeded")]:
-            if count == 2001:
-                self.repo.write("feature.py", "".join(f"line_{i}\n" for i in range(count)))
-                self.repo.commit()
-            before = self.repo.snapshot()
-            proc = subprocess.run(
-                [sys.executable, "-B", str(SCRIPT), "--repo", str(self.repo.path)],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            )
-            self.assertEqual(proc.returncode, code, proc.stdout)
-            result, end = json.JSONDecoder().raw_decode(proc.stdout.decode())
-            self.assertEqual(proc.stdout.decode()[end:], "\n")
-            self.assertEqual(proc.stderr, b"")
-            self.assertEqual(result["changed_lines"], count)
-            self.assertEqual(result["reason"], reason)
-            self.assertEqual(before, self.repo.snapshot())
+        self.repo.feature(2500)
+        before = self.repo.snapshot()
+        proc = subprocess.run(
+            [sys.executable, "-B", str(SCRIPT), "--repo", str(self.repo.path)],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout)
+        result, end = json.JSONDecoder().raw_decode(proc.stdout.decode())
+        self.assertEqual(proc.stdout.decode()[end:], "\n")
+        self.assertEqual(proc.stderr, b"")
+        self.assertEqual(result["changed_lines"], 2500)
+        self.assertEqual(result["reason"], "ok")
+        self.assertEqual(result["ok"], True)
+        self.assertEqual(before, self.repo.snapshot())
+
+    def test_installed_zero_reviewable_input_markdown_and_locks(self):
+        files = {
+            "README.md": "# Docs\n",
+            "nested/notes.md": "notes\n",
+            "package-lock.json": "{}\n",
+            "nested/Cargo.lock": "[package]\n",
+        }
+        for name, content in files.items():
+            self.repo.write(name, content)
+        self.repo.commit("docs and locks only")
+        result = self.run_check(probe=preflight.package_probe, expected=0, reason="no_reviewable_input")
+        self.assertEqual(result["changed_lines"], 0)
+        self.assertEqual(result["reviewable_files"], [])
+        self.assertEqual(result["ok"], True)
 
     def test_installed_provider_and_unknown_config_layers_fail_clearly(self):
         self.repo.feature()

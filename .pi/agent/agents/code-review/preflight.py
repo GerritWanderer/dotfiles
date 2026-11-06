@@ -11,10 +11,34 @@ import shutil
 import subprocess
 import sys
 
-MAX_CHANGED_LINES = 2000
 PR_AGENT_EXECUTABLE = Path("/home/gerrit/.local/bin/pr-agent")
 PACKAGE_ROOT = Path("/home/gerrit/Work/tries/pr-agent/pr_agent")
-USAGE = "python preflight.py --repo PATH [--base LOCAL_BRANCH]"
+USAGE = "python preflight.py --repo PATH [--base LOCAL_BRANCH] | --print-review-globs"
+
+REVIEW_GLOBS = [
+    "vendor/**",
+    "openspec/**",
+    "*.md",
+    "**/*.md",
+    "package-lock.json",
+    "**/package-lock.json",
+    "yarn.lock",
+    "**/yarn.lock",
+    "pnpm-lock.yaml",
+    "**/pnpm-lock.yaml",
+    "Cargo.lock",
+    "**/Cargo.lock",
+    "Gemfile.lock",
+    "**/Gemfile.lock",
+    "poetry.lock",
+    "**/poetry.lock",
+    "uv.lock",
+    "**/uv.lock",
+    "composer.lock",
+    "**/composer.lock",
+    "go.sum",
+    "**/go.sum",
+]
 
 # These files define the audited configuration layers and local-provider behavior.
 # Stop if they change. A new installation requires another read-only audit.
@@ -151,7 +175,7 @@ def probe():
 
     from pr_agent.algo.cli_args import CliArgs
     from pr_agent.algo.utils import update_settings_from_args
-    overrides = ['--ignore.glob=["vendor/**","openspec/**"]', '--config.propagate_tool_errors=true']
+    overrides = ['--ignore.glob=' + json.dumps(request["review_globs"]), '--config.propagate_tool_errors=true']
     if not CliArgs.validate_user_args(overrides)[0]:
         fail("unsupported_cli_overrides", "The installed CLI does not permit the required ignore and error-propagation overrides.")
     if update_settings_from_args(overrides):
@@ -338,6 +362,7 @@ def package_probe(repo, base=None, files=None, head=None, base_head=None):
                 "repo": str(repo), "base": base, "files": files or [],
                 "head": head, "base_head": base_head,
                 "package_root": str(PACKAGE_ROOT), "audited_sources": AUDITED_SOURCES,
+                "review_globs": REVIEW_GLOBS,
             }, ensure_ascii=True).encode("utf-8"),
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60,
         )
@@ -506,7 +531,7 @@ def empty_result():
         "repo": None, "branch": None, "base": None, "head": None,
         "base_head": None, "merge_base": None, "commits": None,
         "changed_files": 0, "reviewable_files": [], "changed_lines": 0,
-        "max_changed_lines": MAX_CHANGED_LINES, "excluded_files": [],
+        "excluded_files": [],
         "output_paths": {"review": None, "improve": None, "describe": None},
         "filter_source": None,
     }
@@ -599,10 +624,9 @@ def evaluate(repo_path, base, result):
         raise Failure("repository_changed", "The branch or working tree changed during preflight.")
     checked_output_paths(repo, config["output_paths"])
     if not result["reviewable_files"]:
-        raise Failure("no_reviewable_input", "No reviewable UTF-8 text patch remains after the installed shared filters.", 1)
-    if result["changed_lines"] > MAX_CHANGED_LINES:
-        raise Failure("changed_line_limit_exceeded", "The reviewable patch exceeds the fixed 2000 added-plus-deleted-line limit. This cap is not a token guarantee.", 1)
-    result.update(ok=True, reason="ok", message="Clean local feature branch is within the 2000 changed-line limit. This cap is not a token guarantee.")
+        result.update(ok=True, reason="no_reviewable_input", message="No reviewable UTF-8 text patch remains after the installed shared filters.", changed_lines=0)
+        return
+    result.update(ok=True, reason="ok", message="Clean local feature branch is ready for review.")
 
 
 def main(argv=None):
@@ -610,9 +634,15 @@ def main(argv=None):
     code = 2
     try:
         parser = JsonParser(add_help=False, allow_abbrev=False)
-        parser.add_argument("--repo", required=True)
+        parser.add_argument("--repo")
         parser.add_argument("--base")
+        parser.add_argument("--print-review-globs", action="store_true")
         args = parser.parse_args(argv)
+        if args.print_review_globs:
+            print(json.dumps(REVIEW_GLOBS, ensure_ascii=True))
+            return 0
+        if not args.repo:
+            raise Failure("usage_error", "the following arguments are required: --repo. Usage: " + USAGE)
         evaluate(args.repo, args.base, result)
         code = 0
     except Failure as exc:
