@@ -1,6 +1,9 @@
 # OpenSpec parent workflow
 
-These instructions apply to the parent session that owns an implementation workstream. Delegated agents follow their task assignments. Read the selection skill before choosing workers.
+These instructions apply only to the main agent in an explicitly activated `openspec-parent-workflow` session.
+The parent owns the selected OpenSpec implementation change. Delegated agents follow their task assignments.
+After completion, cancellation, or an explicit return to ordinary work, do not apply this workflow to later tasks.
+Read the selection skill before choosing workers.
 
 ## Resolve the change and tasks
 

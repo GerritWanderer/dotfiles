@@ -137,7 +137,7 @@ class ProfileContractTests(unittest.TestCase):
     def test_entry_examples_assign_values_before_argument_expansion(self):
         _, coordinator = profile("pr-review-orchestrator")
         reference = (
-            AGENT_DIR / "skills" / "worker-selection" / "references" / "openspec-workflow.md"
+            AGENT_DIR / "skills" / "openspec-parent-workflow" / "references" / "openspec-workflow.md"
         ).read_text()
         repository = "/tmp/review repo's $literal"
         base = "feature/review-base"
@@ -181,26 +181,51 @@ class ProfileContractTests(unittest.TestCase):
         self.assertNotIn("review_skipped", schema)
         self.assertNotIn("base_head", schema)
 
-    def test_shared_selection_table_and_reference(self):
+    def test_worker_selection_does_not_activate_openspec_workflow(self):
         directory = AGENT_DIR / "skills" / "worker-selection"
         text = (directory / "SKILL.md").read_text()
         self.assertIn("name: worker-selection", text)
         for score in range(1, 6):
             self.assertIn(f"| {score} |", text)
-        self.assertTrue((directory / "references" / "openspec-workflow.md").is_file())
+        self.assertFalse((directory / "references" / "openspec-workflow.md").exists())
+        self.assertNotIn("starting an OpenSpec implementation workstream", text)
+        self.assertIn("This skill selects workers only.", text)
+        self.assertIn("does not activate branch stacks", text)
         self.assertIn("formal score report", text)
         self.assertIn("Missing requirements need clarification", text)
 
-    def test_global_instructions_keep_parent_and_worker_roles_separate(self):
+    def test_global_instructions_do_not_activate_openspec_workflow(self):
         text = (AGENT_DIR / "AGENTS.md").read_text()
-        self.assertIn("A reference to a milestone means a task group.", text)
-        self.assertIn("parent-owned", text)
-        self.assertIn("Delegated agents follow their assigned tasks", text)
-        self.assertIn("review_skipped", text)
-        self.assertIn("manually", text)
+        self.assertIn("worker-selection", text)
+        self.assertIn("explicit-only `openspec-parent-workflow`", text)
+        self.assertIn("Do not apply those rules to ordinary coding", text)
+        self.assertIn("existing proposal does not activate", text)
+        self.assertNotIn("starting an OpenSpec implementation workstream", text)
+        self.assertNotIn("references/openspec-workflow.md", text)
+        self.assertNotIn("review_skipped", text)
+        self.assertNotIn("A reference to a milestone means a task group.", text)
+
+    def test_openspec_parent_skill_is_explicit_and_scoped(self):
+        directory = AGENT_DIR / "skills" / "openspec-parent-workflow"
+        text = (directory / "SKILL.md").read_text()
+        _, frontmatter, body = text.split("---", 2)
+        fields = dict(line.split(":", 1) for line in frontmatter.strip().splitlines())
+        self.assertEqual(fields["name"].strip(), "openspec-parent-workflow")
+        self.assertEqual(fields["disable-model-invocation"].strip(), "true")
+        self.assertIn("Only an explicit user activation starts this workflow.", body)
+        self.assertIn("/skill:openspec-parent-workflow <change-id>", body)
+        self.assertIn("before `/opsx-apply <change-id>`", body)
+        self.assertIn("existing proposal, or worker selection does not activate", body)
+        self.assertIn("main agent", body)
+        self.assertIn("Delegated agents follow their assigned tasks", body)
+        self.assertIn("A reference to a milestone means a task group.", body)
+        self.assertIn("the user explicitly switches to ordinary work", body)
+        self.assertIn("A different OpenSpec change needs fresh explicit activation.", body)
+        self.assertIn("references/openspec-workflow.md", body)
+        self.assertTrue((directory / "references" / "openspec-workflow.md").is_file())
 
     def test_caller_reference_covers_workflow_outcomes(self):
-        text = (AGENT_DIR / "skills" / "worker-selection" / "references" / "openspec-workflow.md").read_text()
+        text = (AGENT_DIR / "skills" / "openspec-parent-workflow" / "references" / "openspec-workflow.md").read_text()
         for token in (
             "<change-id>-<n>", "<change-id>-<n>-<m>", "2,500", "review_approved", "not_reviewed",
             "review_skipped", "blocked", "failed", "artifact_paths", "expected_head", "deferred_tasks",
