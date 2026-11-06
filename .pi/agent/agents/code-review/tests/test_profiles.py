@@ -224,6 +224,71 @@ class ProfileContractTests(unittest.TestCase):
         self.assertIn("references/openspec-workflow.md", body)
         self.assertTrue((directory / "references" / "openspec-workflow.md").is_file())
 
+    def test_retry_policy_limits_roles_and_provider_errors(self):
+        directory = AGENT_DIR / "skills" / "openspec-parent-workflow" / "references"
+        text = (directory / "review-provider-retries.md").read_text()
+        self.assertIn("| OpenSpec parent | `pr-review-orchestrator` |", text)
+        self.assertIn("| Review coordinator | `pr-agent-reviewer` |", text)
+        self.assertIn("does not authorize worker retries", text)
+        self.assertIn("does not activate the OpenSpec parent workflow", text)
+        statuses = set(re.findall(r"`(408|429|500|502|503|504)`", text))
+        self.assertEqual(statuses, {"408", "429", "500", "502", "503", "504"})
+        for token in (
+            "Permanent causes override a qualifying status code.",
+            "Explicit quota exhaustion", "Invalid credentials", "Missing session files",
+            "PR-Agent CLI failures", "Unknown failure origin", "earlier invocation must stop",
+            "Returned `blocked` or `failed` review outcomes keep their existing handling.",
+        ):
+            self.assertIn(token, text)
+
+    def test_retry_policy_preserves_identity_budget_and_state(self):
+        directory = AGENT_DIR / "skills" / "openspec-parent-workflow" / "references"
+        text = (directory / "review-provider-retries.md").read_text()
+        for token in (
+            "logical_invocation_id", "workflow_retry_count", "request_snapshot",
+            "source_snapshot", "run_context", "resolved_provider", "resolved_model",
+            "resolved_thinking", "same resolved provider, model, and thinking level",
+            "at most two workflow attempts", "consume the allowance before dispatch",
+            "Do not create another allowance", "Missing invocation history stops automatic retry",
+            "New commits, source edits, or unrelated untracked files stop automatic retry.",
+            "Do not reset repair history", "Do not discard partial edits",
+            "Another attempt needs an explicit user decision.",
+            "A child failure result does not authorize an outer whole-run restart",
+            "A retry that returns unknown coverage stays blocked.",
+        ):
+            self.assertIn(token, text)
+
+    def test_retry_callers_load_shared_policy_without_global_trigger(self):
+        directory = AGENT_DIR / "skills" / "openspec-parent-workflow" / "references"
+        parent = (directory / "openspec-workflow.md").read_text()
+        _, coordinator = profile("pr-review-orchestrator")
+        self.assertIn("Before dispatch, read `review-provider-retries.md`", parent)
+        self.assertIn("Retry once automatically with the same resolved model", parent)
+        self.assertIn("Returned review outcomes, preflight blockers, and unknown coverage never qualify", parent)
+        self.assertIn("openspec-parent-workflow/references/review-provider-retries.md", coordinator)
+        self.assertIn("Retry once automatically with the same resolved model", coordinator)
+        self.assertIn("Do not reset findings, rejection reasons, repair history", coordinator)
+        self.assertIn("Returned `blocked` or `failed` review outcomes do not qualify.", coordinator)
+        self.assertIn("After the extra attempt fails, return `failed` and stop.", coordinator)
+        self.assertNotIn("review-provider-retries.md", (AGENT_DIR / "AGENTS.md").read_text())
+        self.assertNotIn("review-provider-retries.md", (AGENT_DIR / "skills" / "worker-selection" / "SKILL.md").read_text())
+
+    def test_retry_acceptance_checklist_separates_runtime_evidence(self):
+        text = (AGENT_DIR / "agents" / "code-review" / "tests" / "retry-acceptance.md").read_text()
+        cases = set(re.findall(r"^\| `([^`]+)` \|", text, re.M))
+        self.assertEqual(cases, {
+            "provider-503", "provider-statuses", "provider-transport", "model-override",
+            "retry-exhausted", "session-replaced", "quota-exhausted", "authentication",
+            "configuration", "worker-excluded", "unknown-origin", "interrupted", "still-active",
+            "source-changed", "target-changed", "model-unknown", "history-missing",
+            "outputs-only", "returned-failure", "cli-failure", "coverage-blocked", "recovery",
+        })
+        self.assertIn("OpenSpec parent with `pr-review-orchestrator`", text)
+        self.assertIn("coordinator with `pr-agent-reviewer`", text)
+        self.assertIn("They do not verify actual agent dispatch.", text)
+        self.assertIn("Do not let the fixture decide whether the caller retries.", text)
+        self.assertIn("Leave a case or caller unchecked when actual dispatch evidence is unavailable.", text)
+
     def test_caller_reference_covers_workflow_outcomes(self):
         text = (AGENT_DIR / "skills" / "openspec-parent-workflow" / "references" / "openspec-workflow.md").read_text()
         for token in (

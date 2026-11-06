@@ -48,6 +48,10 @@ If project instructions or the user explicitly skip reviews, do not call the coo
 
 ## Review request
 
+Before dispatch, read `review-provider-retries.md` relative to this reference directory.
+Record the complete request and source-state snapshot. Keep the tool's resolved provider, model, and thinking level when it identifies them.
+Use that shared policy for a temporary coordinator invocation failure without a returned review result.
+
 Start a fresh `pr-review-orchestrator` run for each branch. Use a descriptive unique name, such as `review-group-2-part-2`. Supply:
 
 - `repository`: canonical repository path.
@@ -69,6 +73,9 @@ The coordinator owns its one-time preflight and review-repair loop. Await automa
 - `not_reviewed`: accept this expected outcome when exclusions leave no input. Record it without claiming that code review occurred.
 - `review_skipped`: record the explicit opt-out. This is a parent status, not a coordinator output.
 - `blocked` or `failed`: report the reason and stop progression. Do not create the next branch or execute further tasks.
+- A temporary coordinator invocation failure without a review result follows `review-provider-retries.md` before normal failure reporting.
+  Retry once automatically with the same resolved model only when its state and allowance checks pass.
+  Returned review outcomes, preflight blockers, and unknown coverage never qualify for this invocation retry.
 - If the result reports a confirmed defect already present in the base, pause and report it before any further work, even with current-branch approval.
 
 After an accepted outcome with tasks remaining, create the next continuation branch from the completed branch. After group completion, create the next task-group branch from the completed branch. Do not create an extra branch when the whole change is complete.
