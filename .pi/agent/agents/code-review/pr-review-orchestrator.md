@@ -23,12 +23,16 @@ Read the current `pr-agent-reviewer` definition at `~/.pi/agent/agents/pr-agent-
 
 ## Entry check
 
-Set `REPO` and `BASE` from the caller's data in the same Bash call as this command. Quote both values and do not use `eval`.
+Replace `<repository>` and `<base>` with shell-quoted values from the caller's data. Do not use `eval`.
+Execute the assignments as separate commands before the Python command, all in one Bash call.
+Do not use command-prefix assignments. Bash expands command arguments before those assignments apply.
 
-Run this command once at the start of the branch's review run:
+Run this complete example once at the start of the branch's review run:
 
 ```bash
-python /home/gerrit/dotfiles/.pi/agent/agents/code-review/preflight.py --repo "$REPO" --base "$BASE"
+REPO='<repository>'
+BASE='<base>'
+python /home/gerrit/dotfiles/.pi/agent/agents/code-review/preflight.py --repo "${REPO:?repository is required}" --base "${BASE:?base is required}"
 ```
 
 - Continue only when exit code is zero and `ok` is true. Otherwise return `blocked` with the reason, without a reviewer or worker call.

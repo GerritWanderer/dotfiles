@@ -1,7 +1,10 @@
 """Check the agent profiles and shared workflow references."""
 
+import os
 from pathlib import Path
 import re
+import shlex
+import subprocess
 import unittest
 
 
@@ -65,6 +68,38 @@ class ProfileContractTests(unittest.TestCase):
         self.assertIn("initial failed fix", body)
         self.assertIn("If it returns `blocked`, return `blocked` with its reason", body)
         self.assertIn("Partial or unknown", (AGENT_DIR / "agents" / "pr-agent-reviewer.md").read_text())
+
+    def test_entry_examples_assign_values_before_argument_expansion(self):
+        _, coordinator = profile("pr-review-orchestrator")
+        reference = (
+            AGENT_DIR / "skills" / "worker-selection" / "references" / "openspec-workflow.md"
+        ).read_text()
+        repository = "/tmp/review repo's $literal"
+        base = "feature/review-base"
+        script = str(AGENT_DIR / "agents" / "code-review" / "preflight.py")
+        for source, body in (("coordinator", coordinator), ("parent", reference)):
+            with self.subTest(source=source):
+                example = re.search(r"```bash\n(.*?)\n```", body, re.S)
+                self.assertIsNotNone(example, "The entry example must use one Bash block.")
+                command = example.group(1).replace("'<repository>'", shlex.quote(repository))
+                command = command.replace("'<base>'", shlex.quote(base))
+                for inherited in (None, {"REPO": "stale repository", "BASE": "stale-base"}):
+                    with self.subTest(inherited=inherited):
+                        env = dict(os.environ)
+                        for key in ("REPO", "BASE", "BASH_ENV"):
+                            env.pop(key, None)
+                        env.update(inherited or {})
+                        capture = "python() { printf '%s\\0' \"$@\"; }\n"
+                        result = subprocess.run(
+                            ["bash", "--noprofile", "--norc", "-c", capture + command],
+                            env=env, text=True, capture_output=True, check=False,
+                        )
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertEqual(result.stderr, "")
+                        self.assertEqual(
+                            result.stdout.split("\0")[:-1],
+                            [script, "--repo", repository, "--base", base],
+                        )
 
     def test_public_result_schema_matches_contract(self):
         _, body = profile("pr-review-orchestrator")
