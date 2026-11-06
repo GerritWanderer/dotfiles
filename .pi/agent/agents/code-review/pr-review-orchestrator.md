@@ -56,6 +56,20 @@ Match findings by behavior and location, not wording or exact line numbers. A ne
 
 `review_cycles` records reviewer passes for the public result. It is not a permission gate or a maximum. Missing earlier-run history never prevents a new run.
 
+## Reviewer invocation retries
+
+Before dispatch, read `~/.pi/agent/skills/openspec-parent-workflow/references/review-provider-retries.md`.
+Record each logical reviewer invocation, its complete request, source snapshot, and resolved provider, model, and thinking level.
+Keep its caller-owned retry allowance and necessary run history in this session.
+
+A temporary reviewer invocation failure without a returned review result follows that shared policy.
+Retry once automatically with the same resolved model only when every state and allowance check passes.
+Do not reset findings, rejection reasons, repair history, entry preflight, or failed-fix escalation.
+Returned `blocked` or `failed` review outcomes do not qualify. Neither do PR-Agent CLI failures, worker failures, or unknown coverage.
+
+After the extra attempt fails, return `failed` and stop. Report safe provider error evidence and both attempts in `verification`.
+Do not change model profiles, provider settings, or the public outcome schema.
+
 ## Review and repair loop
 
 1. Start a fresh `pr-agent-reviewer` pass with the repository, branch, base, latest `expected_head`, `merge_base`, and `output_paths`.
@@ -77,7 +91,9 @@ Match findings by behavior and location, not wording or exact line numbers. A ne
 
 A raw report with only rejected comments can support approval. Do not repeat review solely to get an empty raw report. Supplied check evidence must apply to the current target. After code fixes, run affected checks through a worker when necessary before approval.
 
-Do not treat a missing or ambiguous child result as success. Report missing evidence as `blocked`. An execution failure returns `failed` rather than starting another review without a reason.
+Do not treat a missing or ambiguous child result as success. Report missing evidence as `blocked`.
+Only an explicit temporary delegated provider failure can use the shared invocation retry allowance.
+An exhausted allowance or other execution failure returns `failed` without another automatic review invocation.
 
 ## One failed-fix escalation per finding
 
