@@ -146,6 +146,8 @@ class PreflightTests(RepoTestCase):
         self.assertEqual(result["reviewable_files"], ["feature.py"])
         self.assertEqual(result["changed_lines"], 2)
         self.assertIn("Clean local feature branch is ready for review.", result["message"])
+        self.assertEqual(result["output_paths"]["review_json"], str(self.repo.path / "review.md.json"))
+        self.assertFalse((self.repo.path / "review.md.json").exists())
 
     def test_large_diff_over_2000_lines_passes(self):
         self.repo.feature(2501)
@@ -180,7 +182,7 @@ class PreflightTests(RepoTestCase):
 
     def test_untracked_output_exceptions(self):
         self.repo.feature()
-        for path in ["review.md", "improve.md", "description.md"]:
+        for path in ["review.md", "review.md.json", "improve.md", "description.md"]:
             self.repo.write(path, "old local result\n")
         self.run_check()
         self.repo.write("nested/review.md", "not the configured output\n")
@@ -192,13 +194,16 @@ class PreflightTests(RepoTestCase):
         for value in paths.values():
             self.repo.write(value, "prior output\n")
         result = self.run_check(probe=MockProbe(self.repo, paths=paths))
-        self.assertEqual(result["output_paths"], {key: str((self.repo.path / value).resolve()) for key, value in paths.items()})
+        expected = {key: str((self.repo.path / value).resolve()) for key, value in paths.items()}
+        expected["review_json"] = str(self.repo.path / "results/review.md.json")
+        self.assertEqual(result["output_paths"], expected)
 
     def test_output_symlink_inside_is_resolved(self):
         self.repo.feature()
         self.repo.write("results/old.md", "prior output\n")
         (self.repo.path / "review.md").symlink_to("results/old.md")
-        self.run_check()
+        result = self.run_check()
+        self.assertEqual(result["output_paths"]["review_json"], str(self.repo.path / "results/old.md.json"))
 
     def test_tracked_output_collision(self):
         self.repo.write("review.md", "source\n")
@@ -229,6 +234,91 @@ class PreflightTests(RepoTestCase):
         paths = MockProbe(self.repo).paths
         paths["review"] = ".git/index"
         self.run_check(probe=MockProbe(self.repo, paths), expected=2, reason="invalid_output_path")
+
+    def test_review_json_derivation_validates_review_path_first(self):
+        self.repo.feature()
+        for value in (None, "", "bad\0path", str(self.repo.path)):
+            with self.subTest(value=value):
+                paths = MockProbe(self.repo).paths
+                paths["review"] = value
+                self.run_check(probe=MockProbe(self.repo, paths), expected=2, reason="invalid_output_path")
+        paths = MockProbe(self.repo).paths
+        paths["review"] = "/"
+        self.run_check(probe=MockProbe(self.repo, paths), expected=2, reason="unsupported_external_output_path")
+
+    def test_review_json_rejects_tracked_file(self):
+        self.repo.write("review.md.json", "tracked source\n")
+        self.repo.feature()
+        self.run_check(expected=1, reason="tracked_output_collision")
+
+    def test_review_json_rejects_tracked_symlink_and_hardlink(self):
+        self.repo.feature()
+        output = self.repo.path / "review.md.json"
+        output.symlink_to("feature.py")
+        self.run_check(expected=1, reason="tracked_output_collision")
+        output.unlink()
+        os.link(self.repo.path / "feature.py", output)
+        self.run_check(expected=1, reason="tracked_output_collision")
+
+    def test_review_json_rejects_external_symlink(self):
+        self.repo.feature()
+        outside = Path(self.temp.name) / "outside.json"
+        outside.write_text("outside data\n")
+        (self.repo.path / "review.md.json").symlink_to(outside)
+        self.run_check(expected=2, reason="unsupported_external_output_path")
+        self.assertEqual(outside.read_text(), "outside data\n")
+
+    def test_review_json_rejects_git_metadata(self):
+        self.repo.feature()
+        (self.repo.path / "review.md.json").symlink_to(".git/index")
+        self.run_check(expected=2, reason="invalid_output_path")
+
+    def test_review_json_rejects_directory(self):
+        self.repo.feature()
+        (self.repo.path / "review.md.json").mkdir()
+        self.run_check(expected=2, reason="invalid_output_path")
+
+    def test_review_json_rejects_markdown_aliases(self):
+        self.repo.feature()
+        output = self.repo.path / "review.md.json"
+        for name in ("review.md", "improve.md", "description.md"):
+            self.repo.write(name, "old output\n")
+        for name in ("review.md", "improve.md", "description.md"):
+            with self.subTest(name=name):
+                output.symlink_to(name)
+                try:
+                    self.run_check(expected=2, reason="output_path_collision")
+                finally:
+                    output.unlink()
+                os.link(self.repo.path / name, output)
+                try:
+                    self.run_check(expected=2, reason="output_path_collision")
+                finally:
+                    output.unlink()
+
+    def test_review_json_does_not_allow_unrelated_sidecars(self):
+        self.repo.feature()
+        self.repo.write("nested/review.md.json", "unrelated output\n")
+        self.run_check(expected=1, reason="untracked_files")
+
+    def test_review_json_cannot_be_supplied_by_provider(self):
+        self.repo.feature()
+        paths = MockProbe(self.repo).paths
+        paths["review_json"] = str(self.repo.path / "other.json")
+        self.run_check(probe=MockProbe(self.repo, paths), expected=2, reason="invalid_probe_output")
+
+    def test_output_path_change_during_preflight_blocks(self):
+        self.repo.feature()
+        original = preflight.checked_output_paths
+        calls = []
+        def changed(*args):
+            paths = original(*args)
+            calls.append(paths)
+            if len(calls) == 2:
+                paths["review_json"] = self.repo.path / "different.json"
+            return paths
+        with mock.patch.object(preflight, "checked_output_paths", changed):
+            self.run_check(expected=2, reason="configuration_changed")
 
     def test_missing_base_and_invalid_revision(self):
         self.repo.feature()
@@ -475,11 +565,13 @@ class InstalledSharedFilterTests(RepoTestCase):
         self.repo.feature()
         self.repo.write("results/review.md", "old result\n")
         self.repo.write("results/improve.md", "old result\n")
+        self.repo.write("results/review.md.json", "old JSON result\n")
         env = {"LOCAL__REVIEW_PATH": "results/review.md", "LOCAL__IMPROVE_PATH": str(self.repo.path / "results/improve.md")}
         with mock.patch.dict(os.environ, env):
             result = self.run_check(probe=preflight.package_probe)
         self.assertEqual(result["output_paths"]["review"], str(self.repo.path / "results/review.md"))
         self.assertEqual(result["output_paths"]["improve"], str(self.repo.path / "results/improve.md"))
+        self.assertEqual(result["output_paths"]["review_json"], str(self.repo.path / "results/review.md.json"))
 
     def test_installed_nul_safe_modified_rename(self):
         original = "old space\tname\n.py"

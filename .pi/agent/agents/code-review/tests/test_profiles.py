@@ -54,6 +54,71 @@ class ProfileContractTests(unittest.TestCase):
         self.assertIn("--pr_reviewer.enable_review_coverage_footer=true", body)
         self.assertIn("--pr_code_suggestions.enable_suggestions_coverage_footer=true", body)
 
+    def test_reviewer_places_guarded_json_option_before_review(self):
+        _, body = profile("pr-agent-reviewer")
+        command = re.search(r"```bash\n(.*?)\n```", body, re.S).group(1)
+        base = "feature/review-base"
+        output = "/tmp/review repo's $literal/review.md.json"
+        setup = (
+            f"BASE={shlex.quote(base)}\nREVIEW_JSON={shlex.quote(output)}\n"
+            "COMMON_ARGS=('--ignore.glob=[]' '--config.propagate_tool_errors=true')\n"
+            "REVIEW_INSTRUCTIONS='review scope'\n"
+            "pr-agent() { printf '%s\\0' \"$@\"; }\n"
+        )
+        env = dict(os.environ)
+        env.pop("BASH_ENV", None)
+        result = subprocess.run(
+            ["bash", "--noprofile", "--norc", "-c", setup + command],
+            env=env, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(result.stdout.split("\0")[:-1], [
+            "--pr_url", base, "--json-output", output, "review",
+            "--ignore.glob=[]", "--config.propagate_tool_errors=true",
+            "--pr_reviewer.enable_review_coverage_footer=true",
+            "--pr_reviewer.extra_instructions=review scope",
+        ])
+
+    def test_reviewer_blocks_empty_base_or_json_output(self):
+        _, body = profile("pr-agent-reviewer")
+        command = re.search(r"```bash\n(.*?)\n```", body, re.S).group(1)
+        for missing in ("BASE", "REVIEW_JSON"):
+            with self.subTest(missing=missing):
+                values = {"BASE": "main", "REVIEW_JSON": "/tmp/review.md.json"}
+                values[missing] = ""
+                setup = "\n".join(f"{key}={shlex.quote(value)}" for key, value in values.items())
+                setup += "\nCOMMON_ARGS=()\nREVIEW_INSTRUCTIONS='scope'\n"
+                setup += "pr-agent() { printf 'UNEXPECTED_COMMAND'; }\n"
+                env = dict(os.environ)
+                env.pop("BASH_ENV", None)
+                result = subprocess.run(
+                    ["bash", "--noprofile", "--norc", "-c", setup + command],
+                    env=env, text=True, capture_output=True, check=False,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "")
+                self.assertIn("is required", result.stderr)
+
+    def test_structured_coverage_keeps_failure_checks(self):
+        _, reviewer = profile("pr-agent-reviewer")
+        for token in (
+            "output_paths.review_json", "coverage.files_not_reviewed",
+            "coverage.files_partially_reviewed", "arrays of strings",
+            "Do not replace missing fields with empty arrays.",
+            "Failed or incomplete chunks block complete coverage",
+            "Missing, invalid, or stale JSON", "final full-diff packing",
+            "A missing warning footer alone is not a blocker.",
+        ):
+            self.assertIn(token, reviewer)
+        _, coordinator = profile("pr-review-orchestrator")
+        for token in (
+            "output_paths.review_json", "all four resolved output paths",
+            "Missing, invalid, or stale JSON", "failed or incomplete chunks remain blockers",
+            "Empty coverage arrays alone do not prove complete coverage.",
+        ):
+            self.assertIn(token, coordinator)
+
     def test_coordinator_owns_entry_check_and_local_repairs(self):
         fields, body = profile("pr-review-orchestrator")
         self.assertEqual(fields["model"], "github-copilot/gpt-6.1-terra")

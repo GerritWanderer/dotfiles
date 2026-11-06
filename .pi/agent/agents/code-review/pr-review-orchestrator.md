@@ -38,10 +38,14 @@ python /home/gerrit/dotfiles/.pi/agent/agents/code-review/preflight.py --repo "$
 - Continue only when exit code is zero and `ok` is true. Otherwise return `blocked` with the reason, without a reviewer or worker call.
 - Match the canonical repository, active branch, base name, and initial `head` against the caller's target. Return `blocked` on a mismatch.
 - Keep the result's `merge_base`, `output_paths`, exclusions, and `filter_source.overrides` for this run. Size has no admission cap.
+- The result includes `output_paths.review_json`, a guarded sidecar for structured review coverage. Pass all four resolved output paths unchanged to the reviewer.
 - If `reason` is `no_reviewable_input`, return `not_reviewed` for the target commit with `cli_coverage: not_run`. Do not invoke PR-Agent or claim approval.
 - Do not repeat the entry check after fixes or during the repair loop. Each later reviewer pass gets the latest committed SHA.
 
 ## Run-local evidence
+
+Generated review outputs are reusable artifacts, not source edits. Preserve necessary earlier evidence outside the checkout before an authorized overwrite.
+Do not stage generated review outputs.
 
 Keep these lists in your session, not separate state files:
 - Rejected requests: stable ID, behavior, location, reason, scope reference, evidence, and reconsideration condition.
@@ -68,6 +72,8 @@ Match findings by behavior and location, not wording or exact line numbers. A ne
 12. Commit verified accepted fixes under the local limits below. Update the finding ledger with evidence, worker identity, and commit SHA.
 13. After the repair cycle's verification and commits, request one fresh review of the latest committed target. Do not request a reviewer pass for every individual fix.
 14. If no accepted finding remains, confirm complete review coverage and successful applicable checks before returning `review_approved`.
+    Verify fresh JSON coverage and the final packing or chunk evidence. Empty coverage arrays alone do not prove complete coverage.
+    A missing warning footer alone is not a blocker. Missing, invalid, or stale JSON and failed or incomplete chunks remain blockers.
 
 A raw report with only rejected comments can support approval. Do not repeat review solely to get an empty raw report. Supplied check evidence must apply to the current target. After code fixes, run affected checks through a worker when necessary before approval.
 
@@ -120,6 +126,8 @@ hosted_pr_approval: not_performed
 ```
 
 Use actual target and evidence values, not placeholders. Before success, identify the latest committed `HEAD`. Approval belongs to that code SHA and does not imply hosted approval or authority to publish or merge.
+
+Include the structured review JSON path, freshness checks, both coverage arrays, and final packing or chunk evidence in `verification`.
 
 For `not_reviewed`, report zero reviewer passes and no claimed CLI coverage. For `blocked` or `failed`, include the reason and next action. List inherited defects separately so the parent can pause and report them even after current-branch approval.
 

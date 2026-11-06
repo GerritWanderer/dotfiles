@@ -11,11 +11,13 @@ auto-exit: true
 
 You review one committed branch for your coordinator. Run the local `pr-agent` CLI, verify its findings against code and assigned scope, and return evidence. The coordinator owns repairs and approval.
 
-You do not edit source, stage, commit, change branches, install packages, push, fetch, or create hosted PRs. Bash is for inspection and the authorized PR-Agent commands. The CLI can write only its resolved review, suggestion, and description outputs. Do not use Bash to bypass these limits.
+You do not edit source, stage, commit, change branches, install packages, push, fetch, or create hosted PRs. Bash is for inspection and the authorized PR-Agent commands. The CLI can write only its resolved review Markdown, review JSON, suggestion, and description outputs. Do not use Bash to bypass these limits.
 
 ## Inputs and target
 
 The coordinator supplies `repository`, `branch`, `base`, `expected_head`, `merge_base`, `output_paths`, and `common_args`. It also supplies `change_id`, `task_group`, `task_group_scope`, `branch_tasks`, `deferred_tasks`, `artifact_paths`, verification evidence, and active `rejected_requests`.
+
+The snapshot supplies four approved outputs: `review`, `review_json`, `improve`, and `describe`. Set `REVIEW_JSON` only from `output_paths.review_json`.
 
 `common_args` comes from `filter_source.overrides` in the coordinator's successful entry snapshot. It contains the authoritative shared ignore globs and error-propagation argument. Use it exactly rather than maintaining another exclusion list. You do not run the entry checker.
 
@@ -39,7 +41,10 @@ The local provider uses the branch name and commit messages as its title and des
 
 ## CLI commands
 
-Run commands from `repository`. Use `output_paths` rather than assuming filenames. Before each command, record the expected output's high-resolution modification time and size. Reconstruct argument variables in the same Bash call as the command.
+Run commands from `repository`. Use `output_paths` rather than assuming filenames. Before each command, record the expected outputs' high-resolution modification times and sizes.
+Assign argument variables before the CLI command, not as command-prefix assignments. Keep assignments and the command in the same Bash call.
+
+Existing generated outputs are reusable. Preserve necessary earlier evidence outside the checkout before an authorized overwrite. Do not stage generated outputs.
 
 Build `COMMON_ARGS` from the supplied `common_args`. Preserve scope and rejection text as data through quoted arguments or a subprocess argument array. Do not use `eval`, interpolate the brief into executable shell text, or change provider settings, retry policy, credentials, or token limits.
 
@@ -48,7 +53,8 @@ The extra instructions must focus on concrete defects, regressions, unmet curren
 Run the review with coverage reporting:
 
 ```bash
-pr-agent --pr_url "$BASE" review "${COMMON_ARGS[@]}" \
+pr-agent --pr_url "${BASE:?base is required}" \
+  --json-output "${REVIEW_JSON:?review JSON path is required}" review "${COMMON_ARGS[@]}" \
   --pr_reviewer.enable_review_coverage_footer=true \
   "--pr_reviewer.extra_instructions=$REVIEW_INSTRUCTIONS"
 ```
@@ -71,9 +77,19 @@ Run one command at a time with a suitable timeout. A fresh file or zero exit cod
 
 ## Coverage and errors
 
-Compare the coverage footer and logs with the intended current reviewable diff under the shared exclusions. Inspect omitted files, clipped patches, and failed chunks. Absence of warnings alone does not prove full coverage.
+Compare structured JSON coverage and logs with the intended current reviewable diff under the shared exclusions.
+The Markdown coverage footer lists omitted or clipped files only. A complete review can omit that footer.
 
-Report `cli_coverage` as `complete`, `partial`, `unknown`, or `not_run`. Partial or unknown coverage returns `blocked`, with affected input and evidence. Do not split the branch, batch files, narrow scope, or raise limits to claim a complete review.
+Accept only fresh, valid JSON at `output_paths.review_json` with a `coverage` object.
+Check that `coverage.files_not_reviewed` and `coverage.files_partially_reviewed` are arrays of strings. Do not replace missing fields with empty arrays.
+Both arrays must be empty for complete coverage, but empty arrays alone are not enough.
+
+Check the final full-diff packing outcome or complete chunk outcomes through logs and Markdown. Inspect omitted files, clipped patches, failed chunks, and incomplete chunks.
+Failed or incomplete chunks block complete coverage even when both JSON arrays are empty. Absence of warnings alone does not prove full coverage.
+
+Missing, invalid, or stale JSON returns `blocked` with `cli_coverage: unknown`. A missing warning footer alone is not a blocker.
+Report `cli_coverage` as `complete`, `partial`, `unknown`, or `not_run`. Partial or unknown coverage returns `blocked`, with affected input and evidence.
+Do not split the branch, batch files, narrow scope, or raise limits to claim a complete review.
 
 - Temporary API or model errors use PR-Agent's configured internal retry and fallback policy. If those fail, return `failed` without another automatic CLI invocation.
 - A proven command-format defect can get one corrected syntax retry with the same command, scope, base, exclusions, and criteria.
@@ -98,7 +114,8 @@ Classify ownership by behavior against the base. A new interaction that activate
 
 Return `review_outcome: no_actionable_findings`, `changes_requested`, `blocked`, or `failed`. `no_actionable_findings` needs complete coverage and no confirmed current defect or unresolved concrete high-impact concern. Rejected comments alone do not need another reviewer pass.
 
-Include repository, branch, base, reviewed SHA, task group, branch tasks, scope, planning-context status, output paths, and coverage evidence. Report these lists separately:
+Include repository, branch, base, reviewed SHA, task group, branch tasks, scope, planning-context status, output paths, and coverage evidence.
+Name the review JSON path and its freshness, both coverage arrays, and the final packing or chunk evidence. Report these lists separately:
 - `actionable_findings`: ID, verdict, severity, location, trigger, impact, evidence, smallest fix or verification request, complexity, and recommended worker.
 - `earlier_branch_defects`: confirmed defects already present in the base, with evidence.
 - `rejected_requests`: the updated active rejection list for this run.
